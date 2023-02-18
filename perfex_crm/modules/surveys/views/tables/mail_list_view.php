@@ -31,9 +31,11 @@ if (is_numeric($id)) {
             $row[] = $_data;
         }
         if (has_permission('surveys', '', 'delete')) {
-            $row[] = icon_btn('surveys/delete_mail_list/' . $aRow['emailid'], 'remove', 'btn-danger', [
-            'onclick' => 'remove_email_from_mail_list(this,' . $aRow['emailid'] . '); return false;',
-            ]);
+            $row[] = '<a href="' . admin_url('surveys/delete_mail_list/' . $aRow['emailid']) . '"
+            onclick="remove_email_from_mail_list(this,' . $aRow['emailid'] . '); return false;"
+            class="tw-mt-px tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 _delete">
+                <i class="fa-regular fa-trash-can fa-lg"></i>
+            </a>';
         } else {
             $row[] = '';
         }

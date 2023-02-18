@@ -992,8 +992,9 @@ class Misc_model extends App_Model
 
         $have_assigned_customers        = have_assigned_customers();
         $have_permission_customers_view = has_permission('customers', '', 'view');
+        $tickets_contacts = $this->input->post('tickets_contacts') && get_option('staff_members_open_tickets_to_all_contacts') == 1;
 
-        if ($have_assigned_customers || $have_permission_customers_view) {
+        if ($have_assigned_customers || $have_permission_customers_view || $tickets_contacts) {
             // Contacts
             $this->db->select(implode(',', prefixed_table_fields_array(db_prefix() . 'contacts')) . ',company');
             $this->db->from(db_prefix() . 'contacts');

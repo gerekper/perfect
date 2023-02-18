@@ -64,13 +64,13 @@ abstract class App_pdf extends TCPDF
         $this->set_font_name($this->get_default_font_name());
 
         if (defined('APP_PDF_MARGIN_LEFT') && defined('APP_PDF_MARGIN_TOP') && defined('APP_PDF_MARGIN_RIGHT')) {
-            $this->SetMargins(APP_PDF_MARGIN_LEFT, APP_PDF_MARGIN_TOP, APP_PDF_MARGIN_RIGHT);
+            $this->setMargins(APP_PDF_MARGIN_LEFT, APP_PDF_MARGIN_TOP, APP_PDF_MARGIN_RIGHT);
         }
 
-        $this->SetAutoPageBreak(true, (defined('APP_PDF_MARGIN_BOTTOM') ? APP_PDF_MARGIN_BOTTOM : PDF_MARGIN_BOTTOM));
+        $this->setAutoPageBreak(true, (defined('APP_PDF_MARGIN_BOTTOM') ? APP_PDF_MARGIN_BOTTOM : PDF_MARGIN_BOTTOM));
 
-        $this->SetAuthor($this->pdf_author);
-        $this->SetFont($this->get_font_name(), '', $this->get_font_size());
+        $this->setAuthor($this->pdf_author);
+        $this->setFont($this->get_font_name(), '', $this->get_font_size());
         $this->setImageScale($this->image_scale);
         $this->setJPEGQuality($this->jpeg_quaility);
 
@@ -103,8 +103,12 @@ abstract class App_pdf extends TCPDF
         return $this;
     }
 
-    public function get_view_vars($vars)
+    public function get_view_vars($var = null)
     {
+        if (array_key_exists($var, $this->view_vars)) {
+            return $this->view_vars[$var];
+        }
+
         return $this->view_vars;
     }
 
@@ -234,6 +238,11 @@ abstract class App_pdf extends TCPDF
 
         // Image center
         $content = str_replace('margin-left: auto; margin-right: auto;', 'text-align:center;', $content);
+
+        // Remove any inline definitions for font family as it's causing issue with
+        // the PDF font, in this case, only the PDF font will be used to generate the PDF document
+        // the inline defitions will be used for HTML view
+        $content = preg_replace('/font-family.+?;/m', '', $content);
 
         return $content;
     }

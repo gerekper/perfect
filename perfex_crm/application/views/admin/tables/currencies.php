@@ -38,15 +38,28 @@ foreach ($rResult as $aRow) {
         }
         $row[] = $_data;
     }
-    $options = icon_btn('#' . $aRow['id'], 'pencil-square-o', 'btn-default', $attributes);
+
+    $options = '<div class="tw-flex tw-items-center tw-space-x-3">';
+    $options .= '<a href="#' . $aRow['id'] . '" class="tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700" ' . _attributes_to_string($attributes) . '>
+        <i class="fa-regular fa-pen-to-square fa-lg"></i>
+    </a>';
 
     if ($aRow['isdefault'] == 0) {
-        $options .= icon_btn('currencies/make_base_currency/' . $aRow['id'], 'star', 'btn-info', [
+        $options .= '<a href="' . admin_url('currencies/make_base_currency/' . $aRow['id']) . '" class="tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700" ' . _attributes_to_string([
             'data-toggle' => 'tooltip',
             'title'       => _l('make_base_currency'),
-            ]);
+            ]) . '>
+        <i class="fa-regular fa-star fa-lg"></i>
+    </a>';
     }
 
-    $row[]              = $options .= icon_btn('currencies/delete/' . $aRow['id'], 'remove', 'btn-danger _delete');
+    $options .= '<a href="' . admin_url('currencies/delete/' . $aRow['id']) . '"
+    class="tw-mt-px tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 _delete">
+        <i class="fa-regular fa-trash-can fa-lg"></i>
+    </a>';
+
+    $options .= '</div>';
+
+    $row[]              = $options;
     $output['aaData'][] = $row;
 }

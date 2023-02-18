@@ -151,7 +151,7 @@ class Payments_model extends App_Model
     {
         return total_rows('invoicepaymentrecords', array_filter([
             'transactionid' => $transactionId,
-            'invoiceid' => $invoiceId
+            'invoiceid'     => $invoiceId,
         ])) > 0;
     }
 
@@ -338,7 +338,7 @@ class Payments_model extends App_Model
                         'fromcompany'     => true,
                         'touserid'        => $member['staffid'],
                         'description'     => 'not_invoice_payment_recorded',
-                        'link'            => 'invoices/list_invoices/' . $invoice->id,
+                        'link'            => 'payments/payment/' . $insert_id,
                         'additional_data' => serialize([
                             format_invoice_number($invoice->id),
                         ]),
@@ -376,25 +376,36 @@ class Payments_model extends App_Model
      */
     public function update($data, $id)
     {
-        $payment = $this->get($id);
-
+        $payment      = $this->get($id);
+        $updated      = false;
         $data['date'] = to_sql_date($data['date']);
         $data['note'] = nl2br($data['note']);
 
         $data = hooks()->apply_filters('before_payment_updated', $data, $id);
 
         $this->db->where('id', $id);
-        $this->db->update(db_prefix() . 'invoicepaymentrecords', $data);
+        $this->db->update('invoicepaymentrecords', $data);
+
         if ($this->db->affected_rows() > 0) {
             if ($data['amount'] != $payment->amount) {
                 update_invoice_status($payment->invoiceid);
             }
-            log_activity('Payment Updated [Number:' . $id . ']');
 
-            return true;
+            $updated = true;
         }
 
-        return false;
+        hooks()->do_action('after_payment_updated', [
+            'id'      => $id,
+            'data'    => $data,
+            'payment' => $payment,
+            'updated' => &$updated,
+        ]);
+
+        if ($updated) {
+            log_activity('Payment Updated [Number:' . $id . ']');
+        }
+
+        return $updated;
     }
 
     /**
@@ -421,6 +432,11 @@ class Payments_model extends App_Model
             ]));
             log_activity('Payment Deleted [ID:' . $id . ', Invoice Number: ' . format_invoice_number($current->id) . ']');
 
+            hooks()->do_action('after_payment_deleted', [
+                'paymentid' => $id,
+                'invoiceid' => $invoiceid,
+            ]);
+
             return true;
         }
 
@@ -440,16 +456,16 @@ class Payments_model extends App_Model
                 continue;
             }
 
-            $data['date'] = to_sql_date($data['date']);
+            $data['date']         = to_sql_date($data['date']);
             $data['daterecorded'] = date('Y-m-d H:i:s');
-            $data = hooks()->apply_filters('before_payment_recorded', $data);
+            $data                 = hooks()->apply_filters('before_payment_recorded', $data);
 
             $this->db->insert(db_prefix() . 'invoicepaymentrecords', $data);
             $insert_id = $this->db->insert_id();
 
             if ($insert_id) {
                 $paymentIds[] = $insert_id;
-                $invoice = $this->invoices_model->get($data['invoiceid']);
+                $invoice      = $this->invoices_model->get($data['invoiceid']);
                 $force_update = false;
 
                 if (!class_exists('Invoices_model', false)) {
@@ -464,15 +480,18 @@ class Payments_model extends App_Model
                 update_invoice_status($data['invoiceid'], $force_update);
 
                 $this->invoices_model->log_invoice_activity(
-                    $data['invoiceid'], 'invoice_activity_payment_made_by_staff',
+                    $data['invoiceid'],
+                    'invoice_activity_payment_made_by_staff',
                     false,
                     serialize([
                         app_format_money($data['amount'], $invoice->currency_name),
                         '<a href="' . admin_url('payments/payment/' . $insert_id) . '" target="_blank">#' . $insert_id . '</a>',
                     ])
                 );
-                log_activity('Payment Recorded [ID:' . $insert_id . ', Invoice Number: ' . format_invoice_number($invoice->id) . ', Total: ' . app_format_money($data['amount'],
-                        $invoice->currency_name) . ']');
+                log_activity('Payment Recorded [ID:' . $insert_id . ', Invoice Number: ' . format_invoice_number($invoice->id) . ', Total: ' . app_format_money(
+                    $data['amount'],
+                    $invoice->currency_name
+                ) . ']');
             }
             hooks()->do_action('after_payment_added', $insert_id);
         }
@@ -500,13 +519,13 @@ class Payments_model extends App_Model
             $contacts = $this->get_contacts_for_payment_emails($clientId);
             foreach ($contacts as $contact) {
                 if (count($payments) === 1) {
-                    $this->send_invoice_payment_recorded($payments[0], $contact);
+                    $this->send_invoice_payment_recorded($payments[0]->id, $contact);
                 } else {
                     $template = mail_template('invoice_batch_payments', $payments, $contact);
                     foreach ($payments as $payment) {
-                        $payment = $this->get($payment->id);
+                        $payment               = $this->get($payment->id);
                         $payment->invoice_data = $this->invoices_model->get($payment->invoiceid);
-                        $template = $this->_add_payment_mail_attachments_to_template($template, $payment);
+                        $template              = $this->_add_payment_mail_attachments_to_template($template, $payment);
                     }
                     $template->send();
                 }
@@ -514,27 +533,28 @@ class Payments_model extends App_Model
         }
     }
 
-    public function send_invoice_payment_recorded($payment, $contact)
+    public function send_invoice_payment_recorded($id, $contact)
     {
         if (!class_exists('Invoices_model', false)) {
             $this->load->model('invoices_model');
         }
 
         // to get structure matching payment_pdf()
-        $payment = $this->get($payment->id);
+        $payment               = $this->get($id);
         $payment->invoice_data = $this->invoices_model->get($payment->invoiceid);
-        $template = mail_template('invoice_payment_recorded_to_customer', (array) $contact, $payment->invoice_data, false, $payment->id);
-        $template = $this->_add_payment_mail_attachments_to_template($template, $payment);
+        $template              = mail_template('invoice_payment_recorded_to_customer', (array) $contact, $payment->invoice_data, false, $id);
+        $template              = $this->_add_payment_mail_attachments_to_template($template, $payment);
 
         return $template->send();
     }
 
-    private function _add_payment_mail_attachments_to_template($template, $payment) {
+    private function _add_payment_mail_attachments_to_template($template, $payment)
+    {
         set_mailing_constant();
 
         $paymentPDF = payment_pdf($payment);
         $filename   = mb_strtoupper(slug_it(_l('payment') . '-' . $payment->paymentid), 'UTF-8') . '.pdf';
-        $attach = $paymentPDF->Output($filename, 'S');
+        $attach     = $paymentPDF->Output($filename, 'S');
         $template->add_attachment([
             'attachment' => $attach,
             'filename'   => $filename,
@@ -553,6 +573,7 @@ class Payments_model extends App_Model
                 'type'       => 'application/pdf',
             ]);
         }
+
         return $template;
     }
 
@@ -561,6 +582,7 @@ class Payments_model extends App_Model
         if (!class_exists('Clients_model', false)) {
             $this->load->model('clients_model');
         }
+
         return $this->clients_model->get_contacts($client_id, [
             'active' => 1, 'invoice_emails' => 1,
         ]);

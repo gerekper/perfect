@@ -11,14 +11,20 @@ class Import_leads extends App_import
 
     protected $requiredFields = ['name'];
 
+    protected $sources;
+
+    protected $statuses;
+
     public function __construct()
     {
-        $this->notImportableFields = hooks()->apply_filters('not_importable_leads_fields', ['id', 'source', 'assigned', 'status', 'dateadded', 'last_status_change', 'addedfrom', 'leadorder', 'date_converted', 'lost', 'junk', 'is_imported_from_email_integration', 'email_integration_uid', 'is_public', 'dateassigned', 'client_id', 'lastcontact', 'last_lead_status', 'from_form_id', 'default_language', 'hash']);
+        $this->notImportableFields = hooks()->apply_filters('not_importable_leads_fields', ['id', 'assigned', 'dateadded', 'last_status_change', 'addedfrom', 'leadorder', 'date_converted', 'lost', 'junk', 'is_imported_from_email_integration', 'email_integration_uid', 'is_public', 'dateassigned', 'client_id', 'lastcontact', 'last_lead_status', 'from_form_id', 'default_language', 'hash']);
 
         $uniqueValidationFields = json_decode(get_option('lead_unique_validation'));
+
         if (count($uniqueValidationFields) > 0) {
             $this->uniqueValidationFields = $uniqueValidationFields;
             $message                      = '';
+
             foreach ($uniqueValidationFields as $key => $field) {
                 if ($key === 0) {
                     $message .= 'Based on your leads <b class="text-danger">unique validation</b> configured <a href="' . admin_url('settings?group=leads#unique_validation_wrapper') . '" target="_blank">options</a>, the lead <b>won\'t</b> be imported if:<br />';
@@ -37,6 +43,9 @@ class Import_leads extends App_import
         }
 
         parent::__construct();
+
+        $this->sources  = $this->ci->db->get('tblleads_sources')->result_array();
+        $this->statuses = $this->ci->db->get('tblleads_status')->result_array();
     }
 
     public function perform()
@@ -55,6 +64,10 @@ class Import_leads extends App_import
                     $row[$i] = '/';
                 } elseif ($databaseFields[$i] == 'country') {
                     $row[$i] = $this->countryValue($row[$i]);
+                } elseif ($databaseFields[$i] == 'source') {
+                    $row[$i] = $this->sourceValue($row[$i]);
+                } elseif ($databaseFields[$i] == 'status') {
+                    $row[$i] = $this->statusValue($row[$i]);
                 }
 
                 $insert[$databaseFields[$i]] = $row[$i];
@@ -80,22 +93,21 @@ class Import_leads extends App_import
                         $insert['addedfrom'] = get_staff_user_id();
                     }
 
-                    $insert['status'] = $this->ci->input->post('status');
-                    $insert['source'] = $this->ci->input->post('source');
-
                     if ($this->ci->input->post('responsible')) {
                         $insert['assigned'] = $this->ci->input->post('responsible');
                     }
 
                     $tags = '';
+
                     if (isset($insert['tags']) || is_null($insert['tags'])) {
                         if (!is_null($insert['tags'])) {
                             $tags = $insert['tags'];
                         }
+
                         unset($insert['tags']);
                     }
 
-                    $this->ci->db->insert(db_prefix() . 'leads', $insert);
+                    $this->ci->db->insert('leads', $insert);
                     $id = $this->ci->db->insert_id();
 
                     if ($id) {
@@ -112,6 +124,34 @@ class Import_leads extends App_import
                 break;
             }
         }
+    }
+
+    protected function findSource($id)
+    {
+        foreach ($this->sources as $source) {
+            if ($source['name'] == $id || $source['id'] == $id) {
+                return $source;
+            }
+        }
+    }
+
+    protected function findStatus($id)
+    {
+        foreach ($this->statuses as $status) {
+            if ($status['name'] == $id || $status['id'] == $id) {
+                return $status;
+            }
+        }
+    }
+
+    protected function statusValue($value)
+    {
+        return $this->findStatus($value)['id'] ?? $this->ci->input->post('status');
+    }
+
+    protected function sourceValue($value)
+    {
+        return $this->findSource($value)['id'] ?? $this->ci->input->post('source');
     }
 
     protected function tags_formatSampleData()
@@ -141,8 +181,7 @@ class Import_leads extends App_import
     private function isDuplicateLead($data)
     {
         foreach ($this->uniqueValidationFields as $field) {
-            if ((isset($data[$field]) && $data[$field] != '')
-                && total_rows(db_prefix() . 'leads', [$field => $data[$field]]) > 0) {
+            if ((isset($data[$field]) && $data[$field] != '') && total_rows('leads', [$field => $data[$field]]) > 0) {
                 return true;
             }
         }
@@ -158,6 +197,10 @@ class Import_leads extends App_import
                 if ($country) {
                     $values[$column] = $country->short_name;
                 }
+            } elseif ($column == 'source') {
+                $values[$column] = $this->findSource($val)['name'] ?? 'N/A';
+            } elseif ($column == 'status') {
+                $values[$column] = $this->findStatus($val)['name'] ?? 'N/A';
             }
         }
 
@@ -167,14 +210,14 @@ class Import_leads extends App_import
     private function getCountry($search = null, $id = null)
     {
         if ($search) {
-            $this->ci->db->where('iso2', $search);
-            $this->ci->db->or_where('short_name', $search);
-            $this->ci->db->or_where('long_name', $search);
+            $this->ci->db->where('iso2', $search)
+            ->or_where('short_name', $search)
+            ->or_where('long_name', $search);
         } else {
             $this->ci->db->where('country_id', $id);
         }
 
-        return  $this->ci->db->get(db_prefix() . 'countries')->row();
+        return  $this->ci->db->get('countries')->row();
     }
 
     private function countryValue($value)

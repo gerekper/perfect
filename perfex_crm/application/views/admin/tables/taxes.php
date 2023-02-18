@@ -25,16 +25,24 @@ foreach ($rResult as $aRow) {
         }
         $row[] = $_data;
     }
-
-    $options = icon_btn('#' . $aRow['id'], 'pencil-square-o', 'btn-default', [
+    $options = '<div class="tw-flex tw-items-center tw-space-x-3">';
+    $options .= '<a href="#' . $aRow['id'] . '" class="tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700" ' . _attributes_to_string([
         'data-toggle'                      => 'modal',
         'data-target'                      => '#tax_modal',
         'data-id'                          => $aRow['id'],
         'data-is-referenced-expenses'      => $is_referenced_expenses,
         'data-is-referenced-subscriptions' => $is_referenced_subscriptions,
-        ]);
+        ]) . '>
+        <i class="fa-regular fa-pen-to-square fa-lg"></i>
+    </a>';
 
-    $row[] = $options .= icon_btn('taxes/delete/' . $aRow['id'], 'remove', 'btn-danger _delete');
+    $options .= '<a href="' . admin_url('taxes/delete/' . $aRow['id']) . '"
+    class="tw-mt-px tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 _delete">
+        <i class="fa-regular fa-trash-can fa-lg"></i>
+    </a>';
+    $options .= '</div>';
+
+    $row[] = $options;
 
     $output['aaData'][] = $row;
 }

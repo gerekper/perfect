@@ -23,7 +23,7 @@ class Stripe_subscriptions extends Stripe_core
         $startingAfter = null;
         do {
             $plans = \Stripe\Plan::all(
-                array_merge(['limit' => 100, 'expand' => ['data.product']], $startingAfter ? ['starting_after' => $startingAfter] : [])
+                array_merge(['limit' => 100, 'active' => true, 'expand' => ['data.product']], $startingAfter ? ['starting_after' => $startingAfter] : [])
             );
 
             if (is_null($data)) {
@@ -32,12 +32,27 @@ class Stripe_subscriptions extends Stripe_core
                 $data->data = array_merge($data->data, $plans->data);
             }
 
-            $startingAfter = $data->data[count($data->data) - 1]->id ?? null;
-            $hasMore       = $plans['has_more'];
+            $startingAfter    = $data->data[count($data->data) - 1]->id ?? null;
+            $hasMore          = $plans['has_more'];
             $data['has_more'] = $hasMore;
         } while ($hasMore);
 
-        return $data;
+        return $this->removeInactivePlansProduct($data);
+    }
+
+    protected function removeInactivePlansProduct($plans)
+    {
+        $active = [];
+
+        foreach ($plans->data as $plan) {
+            if ($plan->product->active === true) {
+                $active[] = $plan;
+            }
+        }
+
+        $plans->data = $active;
+
+        return $plans;
     }
 
     public function get_plan($id)

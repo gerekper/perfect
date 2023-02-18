@@ -90,7 +90,7 @@ class Expenses extends AdminController
             die;
         }
         if ($id == '') {
-            $title = _l('add_new', _l('expense_lowercase'));
+            $title = _l('add_new', _l('expense'));
         } else {
             $data['expense'] = $this->expenses_model->get($id);
 
@@ -98,7 +98,7 @@ class Expenses extends AdminController
                 blank_page(_l('expense_not_found'));
             }
 
-            $title = _l('edit', _l('expense_lowercase'));
+            $title = _l('edit', _l('expense'));
         }
 
         if ($this->input->get('customer_id')) {
@@ -118,6 +118,41 @@ class Expenses extends AdminController
         $data['currencies'] = $this->currencies_model->get();
         $data['title']      = $title;
         $this->load->view('admin/expenses/expense', $data);
+    }
+
+    public function import()
+    {
+        if (!staff_can('create', 'expenses')) {
+            access_denied('Items Import');
+        }
+
+        $this->load->library('import/import_expenses', [], 'import');
+
+        $this->import->setDatabaseFields($this->db->list_fields(db_prefix() . 'expenses'))
+            ->setCustomFields(get_custom_fields('expenses'));
+
+        if ($this->input->post('download_sample') === 'true') {
+            $this->import->downloadSample();
+        }
+
+        if (
+            $this->input->post()
+            && isset($_FILES['file_csv']['name']) && $_FILES['file_csv']['name'] != ''
+        ) {
+            $this->import->setSimulation($this->input->post('simulate'))
+                ->setTemporaryFileLocation($_FILES['file_csv']['tmp_name'])
+                ->setFilename($_FILES['file_csv']['name'])
+                ->perform();
+
+            $data['total_rows_post'] = $this->import->totalRows();
+
+            if (!$this->import->isSimulation()) {
+                set_alert('success', _l('import_total_imported', $this->import->totalImported()));
+            }
+        }
+
+        $data['title'] = _l('import');
+        $this->load->view('admin/expenses/import', $data);
     }
 
     public function bulk_action()

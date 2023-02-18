@@ -72,6 +72,7 @@ class Templates extends AdminController
     public function template($id = null)
     {
         $content = $this->input->post('content', false);
+
         $content = html_purify($content);
 
         $data['name']      = $this->input->post('name');

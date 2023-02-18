@@ -126,6 +126,13 @@ class Proposals_merge_fields extends App_merge_fields
                         'proposals',
                     ],
                 ],
+                [
+                    'name'      => 'Proposal Date',
+                    'key'       => '{proposal_date}',
+                    'available' => [
+                        'proposals',
+                    ],
+                ],
             ];
     }
 
@@ -171,6 +178,7 @@ class Proposals_merge_fields extends App_merge_fields
         $fields['{proposal_assigned}']   = get_staff_full_name($proposal->assigned);
         $fields['{proposal_short_url}']  = get_proposal_shortlink($proposal);
         $fields['{proposal_created_at}'] = _dt($proposal->datecreated);
+        $fields['{proposal_date}']       = _d($proposal->date);
 
         $custom_fields = get_custom_fields('proposal');
         foreach ($custom_fields as $field) {

@@ -341,9 +341,9 @@ class Authentication_model extends App_Model
                     $sent = send_mail_template('staff_forgot_password', $user->email, $user->$_id, $data);
                 }
 
-                if ($sent) {       
+                if ($sent) {
                     log_activity('Password Reset Email sent [Email: ' . $email . ', Is Staff Member: ' . ($staff == true ? 'Yes' : 'No') . ', IP: ' . $this->input->ip_address() . ']');
-             
+
                     hooks()->do_action('forgot_password_email_sent', ['is_staff_member' => $staff, 'user' => $user]);
 
                     return true;
@@ -566,14 +566,16 @@ class Authentication_model extends App_Model
     }
 
     /**
-     * Check if 2 factor authentication code is valid for usage
+     * Check if 2 factor authentication code sent to email is valid for usage
      * @param  string  $code auth code
+     * @param  string  $email email of staff login in
      * @return boolean
      */
-    public function is_two_factor_code_valid($code)
+    public function is_two_factor_code_valid($code, $email)
     {
         $this->db->select('two_factor_auth_code_requested');
         $this->db->where('two_factor_auth_code', $code);
+        $this->db->where('email', $email);
         $user = $this->db->get(db_prefix() . 'staff')->row();
 
         // Code not exists because no user is found

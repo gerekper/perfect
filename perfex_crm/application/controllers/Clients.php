@@ -331,7 +331,8 @@ class Clients extends ClientsController
         if ($group != 'edit_task') {
             if ($group == 'project_overview') {
                 $percent          = $this->projects_model->calc_progress($id);
-                @$data['percent'] = $percent / 100;
+                @$data['percent'] = $percent / 100; // old
+                $data['progress'] = $percent;
                 $this->load->helper('date');
                 $data['project_total_days']        = round((human_to_unix($data['project']->deadline . ' 00:00') - human_to_unix($data['project']->start_date . ' 00:00')) / 3600 / 24);
                 $data['project_days_left']         = $data['project_total_days'];
@@ -396,8 +397,9 @@ class Clients extends ClientsController
                 $data['contracts'] = [];
                 if (has_contact_permission('contracts')) {
                     $data['contracts'] = $this->contracts_model->get('', [
-                            'client'     => get_client_user_id(),
-                            'project_id' => $id,
+                            'client'                => get_client_user_id(),
+                            'project_id'            => $id,
+                            'not_visible_to_client' => 0,
                         ]);
                 }
             } elseif ($group == 'project_activity') {
@@ -434,10 +436,36 @@ class Clients extends ClientsController
             } elseif ($group == 'project_estimates') {
                 $data['estimates'] = [];
                 if (has_contact_permission('estimates')) {
-                    $data['estimates'] = $this->estimates_model->get('', [
-                            'clientid'   => get_client_user_id(),
-                            'project_id' => $id,
-                        ]);
+                    $where_estimates = [
+                        'clientid'   => get_client_user_id(),
+                        'project_id' => $id,
+                    ];
+
+                    if (get_option('exclude_estimate_from_client_area_with_draft_status') == 1) {
+                        $where_estimates['status !='] = 1;
+                    }
+
+                    $data['estimates'] = $this->estimates_model->get('', $where_estimates);
+                }
+            } elseif ($group == 'project_proposals') {
+                $data['proposals'] = [];
+
+                if (has_contact_permission('proposals')) {
+                    $where_proposals = '(rel_id =' . get_client_user_id() . ' AND rel_type ="customer"';
+
+                    if (!is_null($project->client_data->leadid)) {
+                        $where_proposals .= ' OR rel_type="lead" AND rel_id=' . $project->client_data->leadid;
+                    }
+
+                    $where_proposals .= ')';
+
+                    if (get_option('exclude_proposal_from_client_area_with_draft_status') == 1) {
+                        $where_proposals .= ' AND status != 6';
+                    }
+
+                    $where_proposals .= ' AND project_id=' . $id;
+
+                    $data['proposals'] = $this->proposals_model->get('', $where_proposals);
                 }
             } elseif ($group == 'project_timesheets') {
                 $data['timesheets'] = $this->projects_model->get_timesheets($id);
@@ -449,9 +477,9 @@ class Clients extends ClientsController
                     'rel_type' => 'project',
                 ]);
 
-								if (total_rows('milestones', ['hide_from_customer' => 1, 'id' => $data['view_task']->milestone]) > 0 ) {
-									show_404();
-								}
+                if (total_rows('milestones', ['hide_from_customer' => 1, 'id' => $data['view_task']->milestone]) > 0) {
+                    show_404();
+                }
 
                 $data['title'] = $data['view_task']->name;
             }
@@ -643,14 +671,14 @@ class Clients extends ClientsController
 
         $where = 'rel_id =' . get_client_user_id() . ' AND rel_type ="customer"';
 
-        if (get_option('exclude_proposal_from_client_area_with_draft_status') == 1) {
-            $where .= ' AND status != 6';
-        }
-
         $client = $this->clients_model->get(get_client_user_id());
 
         if (!is_null($client->leadid)) {
             $where .= ' OR rel_type="lead" AND rel_id=' . $client->leadid;
+        }
+
+        if (get_option('exclude_proposal_from_client_area_with_draft_status') == 1) {
+            $where .= ' AND status != 6';
         }
 
         $data['proposals'] = $this->proposals_model->get('', $where);
@@ -1185,6 +1213,8 @@ class Clients extends ClientsController
         if ($contact->email) {
             $sessionData['customer_email'] = $contact->email;
         }
+
+        $sessionData = hooks()->apply_filters('stripe_update_credit_card_session_data', $sessionData, $contact);
 
         try {
             $session = $this->stripe_core->create_session($sessionData);

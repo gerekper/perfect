@@ -60,7 +60,7 @@ foreach ($rResult as $aRow) {
 
     $rowName = '<img src="' . contact_profile_image_url($aRow['id']) . '" class="client-profile-image-small mright5"><a href="#" onclick="contact(' . $aRow['userid'] . ',' . $aRow['id'] . ');return false;">' . $aRow['firstname'] . '</a>';
 
-    $rowName .= '<div class="row-options">';
+    $rowName .= '<div class="row-options tw-ml-9">';
 
     $rowName .= '<a href="#" onclick="contact(' . $aRow['userid'] . ',' . $aRow['id'] . ');return false;">' . _l('edit') . '</a>';
 
@@ -121,7 +121,7 @@ foreach ($rResult as $aRow) {
     $row['DT_RowClass'] = 'has-row-options';
 
     if ($aRow['registration_confirmed'] == 0) {
-        $row['DT_RowClass'] .= ' alert-info requires-confirmation';
+        $row['DT_RowClass'] .= ' info requires-confirmation';
         $row['Data_Title']  = _l('customer_requires_registration_confirmation');
         $row['Data_Toggle'] = 'tooltip';
     }

@@ -46,6 +46,6 @@ class Invoice_payment_recorded_to_staff extends App_mail_template
             $this->invoice->clientid,
             !is_client_logged_in() ? '' : get_contact_user_id()
         )
-        ->set_merge_fields('invoice_merge_fields', $this->invoice->id);
+        ->set_merge_fields('invoice_merge_fields', $this->invoice->id, $this->payment_id);
     }
 }

@@ -78,7 +78,7 @@ foreach ($rResult as $aRow) {
             }
 
             if ($user_removed_as_assignee == 1) {
-                $_data .= '<span class="hidden"> - </span> <span class="mtop5 pull-right" data-toggle="tooltip" data-title="' . _l('project_activity_task_assignee_removed') . '"><i class="fa fa-exclamation-circle" aria-hidden="true"></i></span>';
+                $_data .= '<span class="hidden"> - </span> <span class="mtop5 pull-right" data-toggle="tooltip" data-title="' . _l('project_activity_task_assignee_removed') . '"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></span>';
             }
             $_data .= '</div>';
         } elseif ($aColumns[$i] == 'task_id') {
@@ -122,10 +122,13 @@ foreach ($rResult as $aRow) {
         $row[] = $_data;
     }
     $task_is_billed = $this->ci->tasks_model->is_task_billed($aRow['task_id']);
-    $options        = '';
+
+    $options = '<div class="tw-flex tw-items-center tw-space-x-3">';
+
     if (staff_can('edit_timesheet', 'tasks') || (staff_can('edit_own_timesheet', 'tasks') && $aRow['staff_id'] == get_staff_user_id())) {
         if ($aRow['end_time'] !== null) {
             $attrs = [
+                'class'                   => 'tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700',
                 'onclick'                 => 'edit_timesheet(this,' . $aRow['id'] . ');return false',
                 'data-start_time'         => _dt($aRow['start_time'], true),
                 'data-timesheet_task_id'  => $aRow['task_id'],
@@ -134,18 +137,20 @@ foreach ($rResult as $aRow) {
                 'data-note'               => $aRow['note'] ? htmlspecialchars(clear_textarea_breaks($aRow['note']), ENT_COMPAT) : '',
                 ];
 
-            $btn_icon_class = 'btn-default';
             if ($aRow['status'] == Tasks_model::STATUS_COMPLETE || $user_removed_as_assignee == true) {
-                $attrs['disabled'] = true;
-                $btn_icon_class .= ' disabled';
+                $attrs['class'] .= ' tw-pointer-events-none tw-opacity-60';
             }
 
             $attrs['data-end_time'] = _dt($aRow['end_time'], true);
-            $icon_btn               = icon_btn('#', 'pencil-square-o', $btn_icon_class, $attrs);
+
+            $editAction = '<a href="#" ' . _attributes_to_string($attrs) . '>
+                <i class="fa-regular fa-pen-to-square fa-lg"></i>
+            </a>';
+
             if ($aRow['status'] == Tasks_model::STATUS_COMPLETE) {
-                $icon_btn = '<span data-toggle="tooltip" data-title="' . _l('task_edit_delete_timesheet_notice', [($task_is_billed ? _l('task_billed') : _l('task_status_5')), _l('edit')]) . '">' . $icon_btn . '</span>';
+                $editAction = '<span data-toggle="tooltip" data-title="' . _l('task_edit_delete_timesheet_notice', [($task_is_billed ? _l('task_billed') : _l('task_status_5')), _l('edit')]) . '">' . $editAction . '</span>';
             }
-            $options .= $icon_btn;
+            $options .= $editAction;
         }
     }
 
@@ -153,8 +158,8 @@ foreach ($rResult as $aRow) {
         if ($aRow['end_time'] == null && ($aRow['staff_id'] == get_staff_user_id() || is_admin())) {
             $adminStop = $aRow['staff_id'] != get_staff_user_id() ? 1 : 0;
 
-            $options .= ' <a href="#"
-                    class="btn btn-danger btn-icon"
+            $options .= '<a href="#"
+                    class="tw-text-danger-500 hover:tw-text-danger-700 focus:tw-text-danger-700"
                     data-toggle="popover"
                     data-placement="bottom"
                     data-html="true"
@@ -163,36 +168,43 @@ foreach ($rResult as $aRow) {
                     data-content='" . render_textarea('timesheet_note') . '
                     <button type="button"
                     onclick="timer_action(this, ' . $aRow['task_id'] . ', ' . $aRow['id'] . ', ' . $adminStop . ');"
-                    class="btn btn-info btn-xs">' . _l('save')
+                    class="btn btn-primary btn-sm">' . _l('save')
                     . "</button>'
                     class=\"text-danger\"
                     onclick=\"return false;\">
                     <span data-toggle=\"tooltip\" data-title='" . _l('timesheet_stop_timer') . "'>
-                          <i class=\"fa fa-clock-o\"></i>
+                          <i class=\"fa-regular fa-clock fa-lg\"></i>
                           </span>
                     </a>'";
         }
     }
 
     if (staff_can('delete_timesheet', 'tasks') || staff_can('delete_own_timesheet', 'tasks') && $aRow['staff_id'] == get_staff_user_id()) {
-        $btn_icon_class = 'btn-danger _delete';
-        $attrs          = [];
+        $attrs = [
+            'class' => 'tw-mt-px tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 _delete',
+            'href'  => admin_url('tasks/delete_timesheet/' . $aRow['id']),
+        ];
 
         if ($task_is_billed) {
-            $btn_icon_class .= ' disabled';
-            $attrs['disabled'] = true;
+            $attrs['class'] .= ' tw-pointer-events-none tw-opacity-60';
         }
 
-        $icon_btn = icon_btn('tasks/delete_timesheet/' . $aRow['id'], 'remove', $btn_icon_class, $attrs);
+        $deleteAction = ' <a ' . _attributes_to_string($attrs) . '>
+            <i class="fa-regular fa-trash-can fa-lg"></i>
+        </a>';
+
         if ($task_is_billed) {
             $icon_btn = '<span data-toggle="tooltip" data-title="' . _l('task_edit_delete_timesheet_notice', [
                 _l('task_billed'),
-                _l('delete'), ]) . '">' . $icon_btn . '</span>';
+                _l('delete'), ]) . '">' . $deleteAction . '</span>';
         }
 
-        $options .= $icon_btn;
+        $options .= $deleteAction;
     }
 
-    $row[]              = $options;
+    $options .= '</div>';
+
+    $row[] = $options;
+
     $output['aaData'][] = $row;
 }

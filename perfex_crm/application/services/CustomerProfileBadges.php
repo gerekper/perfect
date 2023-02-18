@@ -167,10 +167,10 @@ class CustomerProfileBadges
     public function tickets()
     {
         if (!is_admin()) {
+            $departments_ids      = [];
             if (get_option('staff_access_only_assigned_departments') == 1) {
                 $this->CI->load->model('departments_model');
                 $staff_deparments_ids = $this->CI->departments_model->get_staff_departments($this->staffId, true);
-                $departments_ids      = [];
                 if (count($staff_deparments_ids) == 0) {
                     $departments = $this->CI->departments_model->get();
                     foreach ($departments as $department) {

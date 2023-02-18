@@ -48,7 +48,7 @@ foreach ($rResult as $aRow) {
 
     $rowName = '<img src="' . contact_profile_image_url($aRow['id']) . '" class="client-profile-image-small mright5"><a href="#" onclick="contact(' . $aRow['userid'] . ',' . $aRow['id'] . ');return false;">' . $aRow['full_name'] . '</a>';
 
-    $rowName .= '<div class="row-options">';
+    $rowName .= '<div class="row-options tw-ml-9">';
 
     $rowName .= '<a href="#" onclick="contact(' . $aRow['userid'] . ',' . $aRow['id'] . ');return false;">' . _l('edit') . '</a>';
 

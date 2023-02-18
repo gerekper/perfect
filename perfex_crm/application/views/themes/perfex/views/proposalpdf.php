@@ -35,6 +35,12 @@ if (!empty($proposal->open_till)) {
     $open_till = _l('proposal_open_till') . ': ' . _d($proposal->open_till) . '<br />';
 }
 
+
+$project = '';
+if ($proposal->project_id != '' && get_option('show_project_on_proposal') == 1) {
+    $project .= _l('project') . ': ' . get_project_name_by_id($proposal->project_id) . '<br />';
+}
+
 $qty_heading = _l('estimate_table_quantity_heading', '', false);
 
 if ($proposal->show_quantity_as == 2) {
@@ -108,6 +114,7 @@ $html = <<<EOF
 $proposal_date
 <br />
 $open_till
+$project
 <div style="width:675px !important;">
 $proposal->content
 </div>

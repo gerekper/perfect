@@ -81,8 +81,17 @@ class Authentication extends ClientsController
             redirect(site_url());
         }
 
+        $honeypot = get_option('enable_honeypot_spam_validation') == 1;
+
+        $fields = [
+            'firstname' => $honeypot ? 'firstnamemjxw' : 'firstname',
+            'lastname'  => $honeypot ? 'lastnamemjxw' : 'lastname',
+            'email'     => $honeypot ? 'emailmjxw' : 'email',
+            'company'   => $honeypot ? 'companymjxw' : 'company',
+        ];
+
         if (get_option('company_is_required') == 1) {
-            $this->form_validation->set_rules('company', _l('client_company'), 'required');
+            $this->form_validation->set_rules($fields['company'], _l('client_company'), 'required');
         }
 
         if (is_gdpr() && get_option('gdpr_enable_terms_and_conditions') == 1) {
@@ -90,13 +99,13 @@ class Authentication extends ClientsController
                 'accept_terms_and_conditions',
                 _l('terms_and_conditions'),
                 'required',
-                    ['required' => _l('terms_and_conditions_validation')]
+                ['required' => _l('terms_and_conditions_validation')]
             );
         }
 
-        $this->form_validation->set_rules('firstname', _l('client_firstname'), 'required');
-        $this->form_validation->set_rules('lastname', _l('client_lastname'), 'required');
-        $this->form_validation->set_rules('email', _l('client_email'), 'trim|required|is_unique[' . db_prefix() . 'contacts.email]|valid_email');
+        $this->form_validation->set_rules($fields['firstname'], _l('client_firstname'), 'required');
+        $this->form_validation->set_rules($fields['lastname'], _l('client_lastname'), 'required');
+        $this->form_validation->set_rules($fields['email'], _l('client_email'), 'trim|required|is_unique[' . db_prefix() . 'contacts.email]|valid_email');
         $this->form_validation->set_rules('password', _l('clients_register_password'), 'required');
         $this->form_validation->set_rules('passwordr', _l('clients_register_password_repeat'), 'required|matches[password]');
 
@@ -121,6 +130,7 @@ class Authentication extends ClientsController
             }
             $this->form_validation->set_rules($field_name, $field['name'], 'required');
         }
+
         foreach ($custom_fields_contacts as $field) {
             $field_name = 'custom_fields[' . $field['fieldto'] . '][' . $field['id'] . ']';
             if ($field['type'] == 'checkbox' || $field['type'] == 'multiselect') {
@@ -128,7 +138,13 @@ class Authentication extends ClientsController
             }
             $this->form_validation->set_rules($field_name, $field['name'], 'required');
         }
+
         if ($this->input->post()) {
+            if ($honeypot &&
+                count(array_filter($this->input->post(['email', 'firstname', 'lastname', 'company']))) > 0) {
+                show_404();
+            }
+
             if ($this->form_validation->run() !== false) {
                 $data      = $this->input->post();
                 $countryId = is_numeric($data['country']) ? $data['country'] : 0;
@@ -155,14 +171,14 @@ class Authentication extends ClientsController
                       'billing_state'       => $data['state'],
                       'billing_zip'         => $data['zip'],
                       'billing_country'     => $countryId,
-                      'firstname'           => $data['firstname'],
-                      'lastname'            => $data['lastname'],
-                      'email'               => $data['email'],
+                      'firstname'           => $data[$fields['firstname']],
+                      'lastname'            => $data[$fields['lastname']],
+                      'email'               => $data[$fields['email']],
                       'contact_phonenumber' => $data['contact_phonenumber'] ,
                       'website'             => $data['website'],
                       'title'               => $data['title'],
                       'password'            => $data['passwordr'],
-                      'company'             => $data['company'],
+                      'company'             => $data[$fields['company']],
                       'vat'                 => isset($data['vat']) ? $data['vat'] : '',
                       'phonenumber'         => $data['phonenumber'],
                       'country'             => $data['country'],
@@ -188,7 +204,7 @@ class Authentication extends ClientsController
                     $this->load->model('authentication_model');
 
                     $logged_in = $this->authentication_model->login(
-                        $this->input->post('email'),
+                        $data[$fields['email']],
                         $this->input->post('password', false),
                         false,
                         false
@@ -212,6 +228,8 @@ class Authentication extends ClientsController
 
         $data['title']     = _l('clients_register_heading');
         $data['bodyclass'] = 'register';
+        $data['honeypot']  = $honeypot;
+        $data['fields']    = $fields;
         $this->data($data);
         $this->view('register');
         $this->layout();
@@ -267,10 +285,10 @@ class Authentication extends ClientsController
                     'userid' => $userid,
                 ]);
                 $success = $this->Authentication_model->reset_password(
-                        0,
-                        $userid,
-                        $new_pass_key,
-                        $this->input->post('passwordr', false)
+                    0,
+                    $userid,
+                    $new_pass_key,
+                    $this->input->post('passwordr', false)
                 );
                 if (is_array($success) && $success['expired'] == true) {
                     set_alert('danger', _l('password_reset_key_expired'));

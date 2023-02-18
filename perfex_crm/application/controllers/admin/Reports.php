@@ -90,7 +90,6 @@ class Reports extends AdminController
         $data['proposal_taxes']    = $this->distinct_taxes('proposal');
         $data['credit_note_taxes'] = $this->distinct_taxes('credit_note');
 
-
         $data['title'] = _l('sales_reports');
         $this->load->view('admin/reports/sales', $data);
     }
@@ -1129,10 +1128,14 @@ class Reports extends AdminController
                     'reference_no',
                     'paymentmode',
                 ];
+
                 $join = [
                     'LEFT JOIN ' . db_prefix() . 'clients ON ' . db_prefix() . 'clients.userid = ' . db_prefix() . 'expenses.clientid',
                     'LEFT JOIN ' . db_prefix() . 'expenses_categories ON ' . db_prefix() . 'expenses_categories.id = ' . db_prefix() . 'expenses.category',
+                    'LEFT JOIN ' . db_prefix() . 'taxes ON ' . db_prefix() . 'taxes.id = ' . db_prefix() . 'expenses.tax',
+                    'LEFT JOIN ' . db_prefix() . 'taxes as taxes_2 ON taxes_2.id = ' . db_prefix() . 'expenses.tax2',
                 ];
+
                 $where  = [];
                 $filter = [];
                 include_once(APPPATH . 'views/admin/tables/includes/expenses_filter.php');
@@ -1155,6 +1158,10 @@ class Reports extends AdminController
                     db_prefix() . 'expenses.id',
                     db_prefix() . 'expenses.clientid',
                     'currency',
+                    db_prefix() . 'taxes.name as tax1_name',
+                    db_prefix() . 'taxes.taxrate as tax1_taxrate',
+                    'taxes_2.name as tax2_name',
+                    'taxes_2.taxrate as tax2_taxrate',
                 ]);
                 $output  = $result['output'];
                 $rResult = $result['rResult'];
@@ -1177,13 +1184,8 @@ class Reports extends AdminController
                         } else {
                             $_data = $aRow[$aColumns[$i]];
                         }
-                        if ($aRow['tax'] != 0) {
-                            $_tax = get_tax_by_id($aRow['tax']);
-                        }
-                        if ($aRow['tax2'] != 0) {
-                            $_tax2 = get_tax_by_id($aRow['tax2']);
-                        }
-                        if ($aColumns[$i] == 'category') {
+
+                        if ($aColumns[$i] == db_prefix() . 'expenses.category') {
                             $_data = '<a href="' . admin_url('expenses/list_expenses/' . $aRow['id']) . '" target="_blank">' . $aRow['category_name'] . '</a>';
                         } elseif ($aColumns[$i] == 'expense_name') {
                             $_data = '<a href="' . admin_url('expenses/list_expenses/' . $aRow['id']) . '" target="_blank">' . $aRow['expense_name'] . '</a>';
@@ -1193,10 +1195,10 @@ class Reports extends AdminController
                                 $footer_data['amount'] += $total;
                             } else {
                                 if ($aRow['tax'] != 0 && $i == 6) {
-                                    $total += ($total / 100 * $_tax->taxrate);
+                                    $total += ($total / 100 * $aRow['tax1_taxrate']);
                                 }
                                 if ($aRow['tax2'] != 0 && $i == 6) {
-                                    $total += ($aRow['amount'] / 100 * $_tax2->taxrate);
+                                    $total += ($aRow['amount'] / 100 * $aRow['tax2_taxrate']);
                                 }
                                 $footer_data['amount_with_tax'] += $total;
                             }
@@ -1216,25 +1218,26 @@ class Reports extends AdminController
                             $_data = _d($_data);
                         } elseif ($aColumns[$i] == 'tax') {
                             if ($aRow['tax'] != 0) {
-                                $_data = $_tax->name . ' - ' . app_format_number($_tax->taxrate) . '%';
+                                $_data = $aRow['tax1_name'] . ' - ' . app_format_number($aRow['tax1_taxrate']) . '%';
                             } else {
                                 $_data = '';
                             }
                         } elseif ($aColumns[$i] == 'tax2') {
                             if ($aRow['tax2'] != 0) {
-                                $_data = $_tax2->name . ' - ' . app_format_number($_tax2->taxrate) . '%';
+                                $_data = $aRow['tax2_name'] . ' - ' . app_format_number($aRow['tax2_taxrate']) . '%';
                             } else {
                                 $_data = '';
                             }
                         } elseif ($i == 5) {
                             if ($aRow['tax'] != 0 || $aRow['tax2'] != 0) {
                                 if ($aRow['tax'] != 0) {
-                                    $total = ($total / 100 * $_tax->taxrate);
+                                    $total = ($total / 100 * $aRow['tax1_taxrate']);
                                     $footer_data['tax_1'] += $total;
                                 }
                                 if ($aRow['tax2'] != 0) {
-                                    $total += ($aRow['amount'] / 100 * $_tax2->taxrate);
-                                    $footer_data['tax_2'] += $total;
+                                    $totalTax2 = ($aRow['amount'] / 100 * $aRow['tax2_taxrate']);
+                                    $total += $totalTax2;
+                                    $footer_data['tax_2'] += $totalTax2;
                                 }
                                 $_data = app_format_money($total, $currency->name);
                                 $footer_data['total_tax'] += $total;

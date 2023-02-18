@@ -86,7 +86,7 @@ class Stripe extends App_Controller
             // Invalid payload
           http_response_code(400); // PHP 5.4 or greater
           exit();
-        } catch (\Stripe\Error\SignatureVerification $e) {
+        } catch (\Stripe\Exception\SignatureVerificationException $e) {
             // Invalid signature
               http_response_code(400); // PHP 5.4 or greater
               exit();
@@ -97,7 +97,6 @@ class Stripe extends App_Controller
             if ($event->type == 'checkout.session.completed') {
                 $session = $event->data->object;
 
-                // Regular invoice pay webhook
                 if ($session->payment_intent) {
                     $payment = $this->stripe_core->retrieve_payment_intent($session->payment_intent);
 
@@ -141,6 +140,8 @@ class Stripe extends App_Controller
                 $this->customerSubscriptionDeletedEvent($event);
             } elseif ($event->type == 'customer.subscription.updated') {
                 $this->customerSubscriptionUpdatedEvent($event);
+            } elseif ($event->type == 'customer.deleted') {
+                $this->customerDeletedEvent($event);
             }
         } catch (\Exception $e) {
             log_activity('Stripe webhook error: ' . $e->getMessage());
@@ -244,10 +245,6 @@ class Stripe extends App_Controller
                 $this->subscriptions_model->update($dbSubscription->id, ['next_billing_cycle' => $crmSubscriptionItem->period->end]);
                 $this->load->model('payments_model');
 
-                if ($this->payments_model->transaction_exists($invoice->charge)) {
-                    return;
-                }
-
                 $new_invoice_data = create_subscription_invoice_data($dbSubscription, $invoice);
                 $this->load->model('invoices_model');
 
@@ -263,13 +260,16 @@ class Stripe extends App_Controller
                         'addedfrom' => $dbSubscription->created_from,
                     ]);
 
-                    $payment_data['paymentmode']   = 'stripe';
-                    $payment_data['amount']        = $new_invoice_data['total'];
-                    $payment_data['invoiceid']     = $id;
-                    $payment_data['transactionid'] = $invoice->charge;
+                    // Probably created via the checkout.session.completed event type
+                    if (! $this->payments_model->transaction_exists($invoice->charge)) {
+                        $payment_data['paymentmode']   = 'stripe';
+                        $payment_data['amount']        = $new_invoice_data['total'];
+                        $payment_data['invoiceid']     = $id;
+                        $payment_data['transactionid'] = $invoice->charge;
 
-                    $this->load->model('payments_model');
-                    $this->payments_model->add($payment_data, $dbSubscription->id);
+                        $this->load->model('payments_model');
+                        $this->payments_model->add($payment_data, $dbSubscription->id);
+                    }
 
                     $update = [
                         'status'                 => 'active',
@@ -375,11 +375,13 @@ class Stripe extends App_Controller
 
             if ($dbSubscription) {
                 $update = [
-                        'status'             => $subscription->status,
-                        'next_billing_cycle' => $subscription->current_period_end,
-                        'quantity'           => $subscription->items->data[0]->quantity,
-                        'ends_at'            => $subscription->cancel_at_period_end ? $subscription->current_period_end : null,
-                    ];
+                    // in case not yet updated e.q. because of hook or event handler failure
+                    'stripe_subscription_id' => $subscription->id,
+                    'status'                 => $subscription->status,
+                    'next_billing_cycle'     => $subscription->current_period_end,
+                    'quantity'               => $subscription->items->data[0]->quantity,
+                    'ends_at'                => $subscription->cancel_at_period_end ? $subscription->current_period_end : null,
+                ];
 
                 if ($dbSubscription->status == 'future') {
                     unset($update['status']);
@@ -416,6 +418,24 @@ class Stripe extends App_Controller
                     ['status' => $subscription->status, 'next_billing_cycle' => null]
                 );
             }
+        }
+    }
+
+    /**
+      * Handle customer deleted
+      *
+      * @param  \stdClass $event
+      *
+      * @return void
+      */
+    protected function customerDeletedEvent($event)
+    {
+        $stripeClient = $event->data->object;
+        $this->db->where('stripe_id', $stripeClient->id);
+        $client = $this->db->get('clients')->row();
+
+        if ($client) {
+            $this->db->where('userid', $client->userid)->update('clients', ['stripe_id' => null]);
         }
     }
 

@@ -1,5 +1,7 @@
 <?php
 
+use app\services\utilities\Arr;
+
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Invoice_items_model extends App_Model
@@ -8,7 +10,6 @@ class Invoice_items_model extends App_Model
     {
         parent::__construct();
     }
-
 
     /**
      * Copy invoice item
@@ -20,16 +21,16 @@ class Invoice_items_model extends App_Model
         $custom_fields_items = get_custom_fields('items');
 
         $data = [
-            'description' => $_data['description'] . ' - Copy',
-            'rate' => $_data['rate'],
-            'tax' => $_data['taxid'],
-            'tax2' => $_data['taxid_2'],
-            'group_id' => $_data['group_id'],
-            'unit' => $_data['unit'],
+            'description'      => $_data['description'] . ' - Copy',
+            'rate'             => $_data['rate'],
+            'tax'              => $_data['taxid'],
+            'tax2'             => $_data['taxid_2'],
+            'group_id'         => $_data['group_id'],
+            'unit'             => $_data['unit'],
             'long_description' => $_data['long_description'],
         ];
 
-        foreach ($_data as $column  => $value) {
+        foreach ($_data as $column => $value) {
             if (strpos($column, 'rate_currency_') !== false) {
                 $data[$column] = $value;
             }
@@ -149,13 +150,10 @@ class Invoice_items_model extends App_Model
             $data['group_id'] = 0;
         }
 
-        if (isset($data['custom_fields'])) {
-            $custom_fields = $data['custom_fields'];
-            unset($data['custom_fields']);
-        }
-
         $columns = $this->db->list_fields(db_prefix() . 'items');
+
         $this->load->dbforge();
+
         foreach ($data as $column => $itemData) {
             if (!in_array($column, $columns) && strpos($column, 'rate_currency_') !== false) {
                 $field = [
@@ -168,12 +166,15 @@ class Invoice_items_model extends App_Model
             }
         }
 
-        $this->db->insert(db_prefix() . 'items', $data);
+        $data          = hooks()->apply_filters('before_item_created', $data);
+        $custom_fields = Arr::pull($data, 'custom_fields') ?? [];
+
+        $this->db->insert('items', $data);
+
         $insert_id = $this->db->insert_id();
+
         if ($insert_id) {
-            if (isset($custom_fields)) {
-                handle_custom_fields_post($insert_id, $custom_fields, true);
-            }
+            handle_custom_fields_post($insert_id, $custom_fields, true);
 
             hooks()->do_action('item_created', $insert_id);
 
@@ -207,11 +208,6 @@ class Invoice_items_model extends App_Model
             $data['tax2'] = null;
         }
 
-        if (isset($data['custom_fields'])) {
-            $custom_fields = $data['custom_fields'];
-            unset($data['custom_fields']);
-        }
-
         $columns = $this->db->list_fields(db_prefix() . 'items');
         $this->load->dbforge();
 
@@ -227,28 +223,35 @@ class Invoice_items_model extends App_Model
             }
         }
 
-        $affectedRows = 0;
-
-        $data = hooks()->apply_filters('before_update_item', $data, $itemid);
+        $updated       = false;
+        $data          = hooks()->apply_filters('before_update_item', $data, $itemid);
+        $custom_fields = Arr::pull($data, 'custom_fields') ?? [];
 
         $this->db->where('id', $itemid);
-        $this->db->update(db_prefix() . 'items', $data);
+        $this->db->update('items', $data);
+
         if ($this->db->affected_rows() > 0) {
+            $updated = true;
+        }
+
+        if (handle_custom_fields_post($itemid, $custom_fields, true)) {
+            $updated = true;
+        }
+
+        do_action_deprecated('item_updated', [$itemid], '2.9.4', 'after_item_updated');
+
+        hooks()->do_action('after_item_updated', [
+            'id'            => $itemid,
+            'data'          => $data,
+            'custom_fields' => $custom_fields,
+            'updated'       => &$updated,
+        ]);
+
+        if ($updated) {
             log_activity('Invoice Item Updated [ID: ' . $itemid . ', ' . $data['description'] . ']');
-            $affectedRows++;
         }
 
-        if (isset($custom_fields)) {
-            if (handle_custom_fields_post($itemid, $custom_fields, true)) {
-                $affectedRows++;
-            }
-        }
-
-        if ($affectedRows > 0) {
-            hooks()->do_action('item_updated', $itemid);
-        }
-
-        return $affectedRows > 0 ? true : false;
+        return $updated;
     }
 
     public function search($q)

@@ -56,7 +56,6 @@ class Payment_modes_model extends App_Model
         } elseif (!empty($id)) {
             foreach ($this->get_payment_gateways(true) as $gateway) {
                 if ($gateway['id'] == $id) {
-
                     if ($gateway['active'] == 0 && $force == false) {
                         continue;
                     }
@@ -102,6 +101,8 @@ class Payment_modes_model extends App_Model
             $data[$check] = !isset($data[$check]) ? 0 : 1;
         }
 
+        $data = hooks()->apply_filters('before_paymentmode_added', $data);
+
         $this->db->insert(db_prefix() . 'payment_modes', [
             'name'                => $data['name'],
             'description'         => nl2br_save_html($data['description']),
@@ -111,9 +112,16 @@ class Payment_modes_model extends App_Model
             'show_on_pdf'         => $data['show_on_pdf'],
             'selected_by_default' => $data['selected_by_default'],
         ]);
+
         $insert_id = $this->db->insert_id();
+
         if ($insert_id) {
             log_activity('New Payment Mode Added [ID: ' . $insert_id . ', Name:' . $data['name'] . ']');
+
+            hooks()->do_action('after_paymentmode_added', [
+                'id'   => $insert_id,
+                'data' => $data,
+            ]);
 
             return true;
         }
@@ -128,8 +136,8 @@ class Payment_modes_model extends App_Model
      */
     public function edit($data)
     {
-        $id = $data['paymentmodeid'];
-
+        $id      = $data['paymentmodeid'];
+        $updated = false;
         unset($data['paymentmodeid']);
 
         foreach (['active', 'show_on_pdf', 'selected_by_default', 'invoices_only', 'expenses_only'] as $check) {
@@ -137,7 +145,7 @@ class Payment_modes_model extends App_Model
         }
 
         $this->db->where('id', $id);
-        $this->db->update(db_prefix() . 'payment_modes', [
+        $this->db->update('payment_modes', [
             'name'                => $data['name'],
             'description'         => nl2br_save_html($data['description']),
             'active'              => $data['active'],
@@ -148,12 +156,20 @@ class Payment_modes_model extends App_Model
         ]);
 
         if ($this->db->affected_rows() > 0) {
-            log_activity('Payment Mode Updated [ID: ' . $id . ', Name:' . $data['name'] . ']');
-
-            return true;
+            $updated = true;
         }
 
-        return false;
+        hooks()->do_action('after_update_paymentmode', [
+            'id'      => $id,
+            'data'    => $data,
+            'updated' => &$updated,
+        ]);
+
+        if ($updated) {
+            log_activity('Payment Mode Updated [ID: ' . $id . ', Name:' . $data['name'] . ']');
+        }
+
+        return $updated;
     }
 
     /**
@@ -172,7 +188,7 @@ class Payment_modes_model extends App_Model
         }
 
         $this->db->where('id', $id);
-        $this->db->delete(db_prefix() . 'payment_modes');
+        $this->db->delete('payment_modes');
         if ($this->db->affected_rows() > 0) {
             log_activity('Payment Mode Deleted [' . $id . ']');
 
@@ -247,7 +263,7 @@ class Payment_modes_model extends App_Model
     public function change_payment_mode_status($id, $status)
     {
         $this->db->where('id', $id);
-        $this->db->update(db_prefix() . 'payment_modes', [
+        $this->db->update('payment_modes', [
             'active' => $status,
         ]);
 
@@ -270,7 +286,7 @@ class Payment_modes_model extends App_Model
     public function change_payment_mode_show_to_client_status($id, $status)
     {
         $this->db->where('id', $id);
-        $this->db->update(db_prefix() . 'payment_modes', [
+        $this->db->update('payment_modes', [
             'showtoclient' => $status,
         ]);
 

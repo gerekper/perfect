@@ -210,29 +210,25 @@ class App_items_table extends App_items_table_template
             return $text;
         }
 
-        $compareRecurring = $this->transaction->recurring_type;
-        $compareDate      = !$this->transaction->last_recurring_date ? $this->transaction->date : $this->transaction->last_recurring_date;
-        $transactionDate  = $this->transaction->date;
+        $startDate       = $this->transaction->date;
+        $originalInvoice = $this->transaction->is_recurring_from ?
+            $this->ci->invoices_model->get($this->transaction->is_recurring_from) :
+            $this->transaction;
 
-        // Is not Y-m-d format
-        if (!preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $compareDate)) {
-            $compareDate = to_sql_date($compareDate);
+        if (!preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $startDate)) {
+            $startDate = to_sql_date($startDate);
         }
 
-        if (!preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $transactionDate)) {
-            $transactionDate = to_sql_date($transactionDate);
+        if ($originalInvoice->custom_recurring == 0) {
+            $originalInvoice->recurring_type = 'month';
         }
 
-        if ($this->transaction->custom_recurring == 0) {
-            $compareRecurring = 'month';
-        }
-
-        $next_date = date('Y-m-d', strtotime(
-            '+' . $this->transaction->recurring . ' ' . strtoupper($compareRecurring),
-            strtotime($compareDate)
+        $nextDate = date('Y-m-d', strtotime(
+            '+' . $originalInvoice->recurring . ' ' . strtoupper($originalInvoice->recurring_type),
+            strtotime($startDate)
         ));
 
-        return str_ireplace('{period}', _d($transactionDate) . ' - ' . _d(date('Y-m-d', strtotime('-1 day', strtotime($next_date)))), $text);
+        return str_ireplace('{period}', _d($startDate) . ' - ' . _d(date('Y-m-d', strtotime('-1 day', strtotime($nextDate)))), $text);
     }
 
     protected function get_description_item_width()

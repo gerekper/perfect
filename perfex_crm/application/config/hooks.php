@@ -18,7 +18,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * Moved here from hooks_helper.php that was included in config.php because some users config.php file permissions are incorrect.
  * NEW Global hooks function
  * This function must be used for all hooks
- * @return object Hooks instance
+ * @return object|Hooks Hooks instance
  */
 function hooks()
 {

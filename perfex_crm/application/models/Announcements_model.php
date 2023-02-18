@@ -57,7 +57,7 @@ class Announcements_model extends App_Model
         }
 
         $staff  = is_client_logged_in() ? 0 : 1;
-        $userid = is_client_logged_in() ? get_client_user_id() : get_staff_user_id();
+        $userid = is_client_logged_in() ? get_contact_user_id() : get_staff_user_id();
 
         $sql = 'SELECT COUNT(*) as total_undismissed FROM ' . db_prefix() . 'announcements WHERE announcementid NOT IN (SELECT announcementid FROM ' . db_prefix() . 'dismissed_announcements WHERE staff=' . $staff . ' AND userid=' . $userid . ')';
         if ($staff == 1) {

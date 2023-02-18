@@ -97,6 +97,7 @@ class Stripe_core
             'customer.subscription.created',
             'customer.subscription.deleted',
             'customer.subscription.updated',
+            'customer.deleted',
         ];
 
         return hooks()->apply_filters('stripe_webhook_events', $events);

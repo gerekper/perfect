@@ -59,6 +59,10 @@ function get_dashboard_widgets()
             'path'      => 'admin/dashboard/widgets/contracts_expiring',
             'container' => 'left-8',
         ],
+        [
+            'path'      => 'admin/dashboard/widgets/tickets_report',
+            'container' => 'left-8',
+        ],
     ];
 
     return hooks()->apply_filters('get_dashboard_widgets', $widgets);

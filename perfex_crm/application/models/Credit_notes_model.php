@@ -48,7 +48,7 @@ class Credit_notes_model extends App_Model
         $this->db->where('id', $credit_note_id);
         $credit_note = $this->db->get(db_prefix() . 'creditnotes')->row();
 
-        $this->db->select('' . db_prefix() . 'invoices.id as id, status, total, date, '.db_prefix().'currencies.name as currency_name');
+        $this->db->select('' . db_prefix() . 'invoices.id as id, status, total, date, ' . db_prefix() . 'currencies.name as currency_name');
         $this->db->where('clientid', $credit_note->clientid);
         $this->db->where('status IN (' . implode(', ', $invoices_statuses_available_for_credits) . ')');
         if (!$has_permission_view) {
@@ -466,8 +466,7 @@ class Credit_notes_model extends App_Model
         $this->db->where('id', $id);
         $this->db->update(db_prefix() . 'creditnotes', ['status' => $status]);
 
-        if ( $this->db->affected_rows() > 0 ) {
-
+        if ($this->db->affected_rows() > 0) {
             hooks()->do_action('credit_note_status_changed', $id, ['status' => $status]);
 
             return true;
@@ -531,7 +530,7 @@ class Credit_notes_model extends App_Model
             }
 
             foreach ($credits_ids as $credit_note_id) {
-                $total_refunds_by_credit_note = $this->total_refunds_by_credit_note($credit_note_id);
+                $total_refunds_by_credit_note = $this->total_refunds_by_credit_note($credit_note_id) ?: 0;
                 if ($bcsub) {
                     $total = bcsub($total, $total_refunds_by_credit_note, get_decimal_places());
                 } else {
@@ -776,7 +775,14 @@ class Credit_notes_model extends App_Model
         if ($insert_id) {
             $this->update_credit_note_status($id);
 
-            $this->db->select(db_prefix().'currencies.name as currency_name');
+            $invoice = $this->db->select('id,status')->where('id', $data['invoice_id'])->get(db_prefix() . 'invoices')->row();
+            if ($invoice->status == Invoices_model::STATUS_DRAFT) {
+                // update invoice number for invoice with draft - V2.7.2
+                $this->load->model('invoices_model');
+                $this->invoices_model->change_invoice_number_when_status_draft($invoice->id);
+            }
+
+            $this->db->select(db_prefix() . 'currencies.name as currency_name');
             $this->db->join(db_prefix() . 'currencies', '' . db_prefix() . 'currencies.id = ' . db_prefix() . 'invoices.currency');
             $this->db->where(db_prefix() . 'invoices.id', $data['invoice_id']);
 
@@ -793,7 +799,6 @@ class Credit_notes_model extends App_Model
             hooks()->do_action('credits_applied', ['data' => $data, 'credit_note_id' => $id]);
 
             log_activity('Credit Applied to Invoice [ Invoice: ' . $inv_number . ', Credit: ' . $credit_note_number . ' ]');
-
         }
 
         return $insert_id;

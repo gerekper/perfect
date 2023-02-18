@@ -76,6 +76,7 @@ define('APP_DB_COLLATION', 'utf8_general_ci');
  */
 define('SESS_DRIVER', 'database');
 define('SESS_SAVE_PATH', 'sessions');
+define('APP_SESSION_COOKIE_SAME_SITE', 'Lax');
 
 /**
  * Enables CSRF Protection

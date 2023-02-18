@@ -50,7 +50,7 @@ class Proposals extends AdminController
             $data['proposal_id']           = $proposal_id;
             $data['switch_pipeline']       = true;
             $data['title']                 = _l('proposals');
-            $data['statuses']              = $this->proposals_model->get_statuses();
+            $data['proposal_statuses']     = $this->proposals_model->get_statuses();
             $data['proposals_sale_agents'] = $this->proposals_model->get_sale_agents();
             $data['years']                 = $this->proposals_model->get_proposals_years();
             $this->load->view('admin/proposals/manage', $data);
@@ -427,6 +427,7 @@ class Proposals extends AdminController
             $data['customer_id'] = $this->db->get(db_prefix() . 'clients')->row()->userid;
         } else {
             $data['customer_id'] = $data['proposal']->rel_id;
+            $data['project_id'] = $data['proposal']->project_id;
         }
         $data['custom_fields_rel_transfer'] = [
             'belongs_to' => 'proposal',
@@ -462,6 +463,7 @@ class Proposals extends AdminController
             $data['customer_id'] = $this->db->get(db_prefix() . 'clients')->row()->userid;
         } else {
             $data['customer_id'] = $data['proposal']->rel_id;
+            $data['project_id'] = $data['proposal']->project_id;
         }
 
         $data['custom_fields_rel_transfer'] = [

@@ -117,13 +117,13 @@ foreach ($rResult as $aRow) {
         $frequency = _l('invoice_add_edit_recurring_month' . ($aRow['recurring'] > 1 ? 's' : ''), $aRow['recurring']);
     } else {
         if ($aRow['recurring_type'] == 'day') {
-            $frequency = _l('frequency_every', $aRow['custom_recurring'] . ' ' . _l('invoice_recurring_days'));
+            $frequency = _l('frequency_every', $aRow['recurring'] . ' ' . _l('invoice_recurring_days'));
         } elseif ($aRow['recurring_type'] == 'week') {
-            $frequency = _l('frequency_every', $aRow['custom_recurring'] . ' ' . _l('invoice_recurring_weeks'));
+            $frequency = _l('frequency_every', $aRow['recurring'] . ' ' . _l('invoice_recurring_weeks'));
         } elseif ($aRow['recurring_type'] == 'month') {
-            $frequency = _l('frequency_every', $aRow['custom_recurring'] . ' ' . _l('invoice_recurring_months'));
+            $frequency = _l('frequency_every', $aRow['recurring'] . ' ' . _l('invoice_recurring_months'));
         } elseif ($aRow['recurring_type'] == 'year') {
-            $frequency = _l('frequency_every', $aRow['custom_recurring'] . ' ' . _l('invoice_recurring_years'));
+            $frequency = _l('frequency_every', $aRow['recurring'] . ' ' . _l('invoice_recurring_years'));
         }
     }
     $row[] = $frequency;

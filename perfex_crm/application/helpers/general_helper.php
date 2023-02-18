@@ -9,6 +9,26 @@ defined('BASEPATH') or exit('No direct script access allowed');
 header('Content-Type: text/html; charset=utf-8');
 
 /**
+ * Load custom lang for the given language
+ *
+ * @since 3.0.0
+ *
+ * @param  string $language
+ *
+ * @return void
+ */
+function load_custom_lang_file($language)
+{
+    $CI = &get_instance();
+    if (file_exists(APPPATH . 'language/' . $language . '/custom_lang.php')) {
+        if (array_key_exists('custom_lang.php', $CI->lang->is_loaded)) {
+            unset($CI->lang->is_loaded['custom_lang.php']);
+        }
+        $CI->lang->load('custom_lang', $language);
+    }
+}
+
+/**
  * Generate short_url
  * @since  Version 2.7.3
  *
@@ -570,9 +590,14 @@ function _d($date)
         return _dt($date);
     }
 
-    $format    = get_current_date_format();
-    $dateTime = new DateTime($date);
-    $formatted = $dateTime->format(str_replace('%', '', $format));
+    $format = get_current_date_format();
+
+    try {
+        $dateTime  = new DateTime($date);
+        $formatted = $dateTime->format(str_replace('%', '', $format));
+    } catch (Exception $e) {
+        $formatted = $date;
+    }
 
     return hooks()->apply_filters('after_format_date', $formatted, $date);
 }
@@ -603,12 +628,15 @@ function _dt($date, $is_timesheet = false)
             $tf = 'H:i';
         }
 
-        if(is_numeric($date)) {
-            $date = date('Y-m-d H:i:s',$date);
+        if (is_numeric($date)) {
+            $date = date('Y-m-d H:i:s', $date);
         }
 
-        $dateTime = new DateTime($date);
-        $date = $dateTime->format(str_replace('%', '', $format . ' ' . $tf));
+        try {
+            $dateTime = new DateTime($date);
+            $date     = $dateTime->format(str_replace('%', '', $format . ' ' . $tf));
+        } catch (Exception $e) {
+        }
     } else {
         $date = date(get_current_date_format(true) . ' g:i A', $date);
     }
@@ -636,6 +664,11 @@ function to_sql_date($date, $datetime = false)
     ]);
 
     if ($datetime == false) {
+        // Is already Y-m-d format?
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $date)) {
+            return $date;
+        }
+
         return hooks()->apply_filters(
             'to_sql_date_formatted',
             DateTime::createFromFormat($from_format, $date)->format($to_date)
@@ -794,49 +827,49 @@ function get_csrf_for_ajax()
 function csrf_jquery_token()
 {
     ?>
-    <script>
-        if (typeof(jQuery) === 'undefined' && !window.deferAfterjQueryLoaded) {
-            window.deferAfterjQueryLoaded = [];
+<script>
+if (typeof(jQuery) === 'undefined' && !window.deferAfterjQueryLoaded) {
+    window.deferAfterjQueryLoaded = [];
+    Object.defineProperty(window, "$", {
+        set: function(value) {
+            window.setTimeout(function() {
+                $.each(window.deferAfterjQueryLoaded, function(index, fn) {
+                    fn();
+                });
+            }, 0);
             Object.defineProperty(window, "$", {
-                set: function(value) {
-                    window.setTimeout(function() {
-                        $.each(window.deferAfterjQueryLoaded, function(index, fn) {
-                            fn();
-                        });
-                    }, 0);
-                    Object.defineProperty(window, "$", {
-                        value: value
-                    });
-                },
-                configurable: true
+                value: value
             });
+        },
+        configurable: true
+    });
+}
+
+var csrfData = <?php echo json_encode(get_csrf_for_ajax()); ?>;
+
+if (typeof(jQuery) == 'undefined') {
+    window.deferAfterjQueryLoaded.push(function() {
+        csrf_jquery_ajax_setup();
+    });
+    window.addEventListener('load', function() {
+        csrf_jquery_ajax_setup();
+    }, true);
+} else {
+    csrf_jquery_ajax_setup();
+}
+
+function csrf_jquery_ajax_setup() {
+    $.ajaxSetup({
+        data: csrfData.formatted
+    });
+
+    $(document).ajaxError(function(event, request, settings) {
+        if (request.status === 419) {
+            alert_float('warning', 'Page expired, refresh the page make an action.')
         }
-
-        var csrfData = <?php echo json_encode(get_csrf_for_ajax()); ?>;
-
-        if (typeof(jQuery) == 'undefined') {
-            window.deferAfterjQueryLoaded.push(function() {
-                csrf_jquery_ajax_setup();
-            });
-            window.addEventListener('load', function() {
-                csrf_jquery_ajax_setup();
-            }, true);
-        } else {
-            csrf_jquery_ajax_setup();
-        }
-
-        function csrf_jquery_ajax_setup() {
-            $.ajaxSetup({
-                data: csrfData.formatted
-            });
-
-            $(document).ajaxError(function(event, request, settings) {
-                if (request.status === 419) {
-                    alert_float('warning', 'Page expired, refresh the page make an action.')
-                }
-            });
-        }
-    </script>
+    });
+}
+</script>
 <?php
 }
 
@@ -942,14 +975,15 @@ function get_last_upgrade_copy_data()
     return false;
 }
 
-if(!function_exists('collect')) {
+if (!function_exists('collect')) {
     /**
      * Collect items in a Collection instance
      * @since  2.9.2
      * @param  array $items
      * @return \Illuminate\Support\Collection
      */
-    function collect($items) {
+    function collect($items)
+    {
         return new Illuminate\Support\Collection($items);
     }
 }

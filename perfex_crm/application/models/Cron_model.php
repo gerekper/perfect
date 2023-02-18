@@ -1,6 +1,7 @@
 <?php
 
 use app\services\imap\Imap;
+use Ddeboer\Imap\Exception\UnsupportedCharsetException;
 use Ddeboer\Imap\SearchExpression;
 use Ddeboer\Imap\Search\Flag\Unseen;
 use app\services\imap\ConnectionErrorException;
@@ -16,6 +17,8 @@ class Cron_model extends App_Model
     public $manually = false;
 
     private $lock_handle;
+
+    private $currentImapMessage;
 
     public function __construct()
     {
@@ -39,6 +42,12 @@ class Cron_model extends App_Model
         parent::__construct();
         $this->load->model('emails_model');
         $this->load->model('staff_model');
+
+        register_shutdown_function(function () {
+            if ($this->hasTimeoutOccurred() && $this->currentImapMessage) {
+                $this->currentImapMessage->markAsSeen();
+            }
+        });
     }
 
     public function run($manually = false)
@@ -1271,91 +1280,93 @@ class Cron_model extends App_Model
             include_once(APPPATH . 'third_party/simple_html_dom.php');
 
             foreach ($messages as $message) {
-                $body = $message->getBodyHtml() ?? $message->getBodyText();
-                $html = str_get_html($body);
+                try {
+                    $this->currentImapMessage = $message;
+                    $body                     = $message->getBodyHtml() ?? $message->getBodyText();
+                    $html                     = str_get_html($body);
 
-                $formFields              = [];
-                $lead_form_custom_fields = [];
-                if ($html) {
-                    foreach ($html->find('[id^="field_"],[id^="custom_field_"]') as $data) {
-                        if (isset($data->plaintext)) {
-                            $value = strip_tags(trim($data->plaintext));
-                            if ($value && isset($data->attr['id']) && !empty($data->attr['id'])) {
-                                $formFields[$data->attr['id']] = $this->security->xss_clean($value);
+                    $formFields              = [];
+                    $lead_form_custom_fields = [];
+                    if ($html) {
+                        foreach ($html->find('[id^="field_"],[id^="custom_field_"]') as $data) {
+                            if (isset($data->plaintext)) {
+                                $value = strip_tags(trim($data->plaintext));
+                                if ($value && isset($data->attr['id']) && !empty($data->attr['id'])) {
+                                    $formFields[$data->attr['id']] = $this->security->xss_clean($value);
+                                }
                             }
                         }
                     }
-                }
 
-                foreach ($formFields as $key => $val) {
-                    $field = (strpos($key, 'custom_field_') !== false ? strafter($key, 'custom_field_') : strafter($key, 'field_'));
+                    foreach ($formFields as $key => $val) {
+                        $field = (strpos($key, 'custom_field_') !== false ? strafter($key, 'custom_field_') : strafter($key, 'field_'));
 
-                    if (strpos($key, 'custom_field_') !== false) {
-                        $lead_form_custom_fields[$field] = $val;
-                    } elseif ($this->db->field_exists($field, db_prefix() . 'leads')) {
-                        $formFields[$field] = $val;
+                        if (strpos($key, 'custom_field_') !== false) {
+                            $lead_form_custom_fields[$field] = $val;
+                        } elseif ($this->db->field_exists($field, db_prefix() . 'leads')) {
+                            $formFields[$field] = $val;
+                        }
+
+                        unset($formFields[$key]);
                     }
 
-                    unset($formFields[$key]);
-                }
+                    $fromAddress = null;
+                    $fromName    = null;
 
-                $fromAddress = null;
-                $fromName    = null;
+                    if ($message->getFrom()) {
+                        $fromAddress = $message->getFrom()->getAddress();
+                        $fromName    = $message->getFrom()->getName();
+                    }
 
-                if ($message->getFrom()) {
-                    $fromAddress = $message->getFrom()->getAddress();
-                    $fromName    = $message->getFrom()->getName();
-                }
+                    $replyTo = $message->getReplyTo();
 
-                $replyTo = $message->getReplyTo();
+                    if (count($replyTo) === 1) {
+                        $fromAddress = $replyTo[0]->getAddress();
+                        $fromName    = $replyTo[0]->getName() ?? $fromName;
+                    }
 
-                if (count($replyTo) === 1) {
-                    $fromAddress = $replyTo[0]->getAddress();
-                    $fromName    = $replyTo[0]->getName() ?? $fromName;
-                }
+                    $fromAddress = $formFields['email'] ?? $fromAddress;
+                    $fromName    = $formFields['name'] ?? $fromName;
+                    $fromName    = $fromName ?: 'Unknown';
 
-                $fromAddress = $formFields['email'] ?? $fromAddress;
-                $fromName    = $formFields['name'] ?? $fromName;
-                $fromName    = $fromName ?: 'Unknown';
+                    /**
+                     * Check the the fromAddress is null, perhaps invalid address?
+                     * @see https://github.com/ddeboer/imap/issues/370
+                     */
+                    if (is_null($fromAddress)) {
+                        $message->markAsSeen();
 
-                /**
-                 * Check the the fromAddress is null, perhaps invalid address?
-                 * @see https://github.com/ddeboer/imap/issues/370
-                 */
-                if (is_null($fromAddress)) {
-                    $message->markAsSeen();
+                        continue;
+                    }
 
-                    continue;
-                }
+                    $mailstatus = $this->spam_filters_model->check($fromAddress, $message->getSubject(), $body, 'leads');
 
-                $mailstatus = $this->spam_filters_model->check($fromAddress, $message->getSubject(), $body, 'leads');
+                    if ($mailstatus) {
+                        $message->markAsSeen();
+                        log_activity('Lead Email Integration Blocked Email by Spam Filters [' . $mailstatus . ']');
 
-                if ($mailstatus) {
-                    $message->markAsSeen();
-                    log_activity('Lead Email Integration Blocked Email by Spam Filters [' . $mailstatus . ']');
+                        continue;
+                    }
 
-                    continue;
-                }
+                    $body = hooks()->apply_filters(
+                        'leads_email_integration_email_body_for_database',
+                        $this->prepare_imap_email_body_html($body)
+                    );
 
-                $body = hooks()->apply_filters(
-                    'leads_email_integration_email_body_for_database',
-                    $this->prepare_imap_email_body_html($body)
-                );
+                    // Okey everything good now let make some statements
+                    // Check if this email exists in customers table first
+                    $this->db->select('id,userid');
+                    $this->db->where('email', $fromAddress);
+                    $contact = $this->db->get(db_prefix() . 'contacts')->row();
+                    if ($contact) {
+                        if ($mail->create_task_if_customer == '1') {
+                            load_admin_language($mail->responsible);
 
-                // Okey everything good now let make some statements
-                // Check if this email exists in customers table first
-                $this->db->select('id,userid');
-                $this->db->where('email', $fromAddress);
-                $contact = $this->db->get(db_prefix() . 'contacts')->row();
-                if ($contact) {
-                    if ($mail->create_task_if_customer == '1') {
-                        load_admin_language($mail->responsible);
+                            $body = '<b>' . _l('leads_email_integration') . ' (' . _l('existing_customer') . ')</b> - <a href="' . admin_url('clients/client/' . $contact->userid . '?contactid=' . $contact->id) . '" target="_blank"><b>' . get_company_name($contact->userid) . '</b></a><br /><br />' . $body;
 
-                        $body = '<b>' . _l('leads_email_integration') . ' (' . _l('existing_customer') . ')</b> - <a href="' . admin_url('clients/client/' . $contact->userid . '?contactid=' . $contact->id) . '" target="_blank"><b>' . get_company_name($contact->userid) . '</b></a><br /><br />' . $body;
+                            load_admin_language();
 
-                        load_admin_language();
-
-                        $task_data = [
+                            $task_data = [
                             'name'        => $fromName . ' - ' . $fromAddress,
                             'priority'    => get_option('default_task_priority'),
                             'dateadded'   => date('Y-m-d H:i:s'),
@@ -1365,66 +1376,66 @@ class Cron_model extends App_Model
                             'description' => $body,
                         ];
 
-                        $task_data = hooks()->apply_filters('before_add_task', $task_data);
-                        $this->db->insert(db_prefix() . 'tasks', $task_data);
+                            $task_data = hooks()->apply_filters('before_add_task', $task_data);
+                            $this->db->insert(db_prefix() . 'tasks', $task_data);
 
-                        $task_id = $this->db->insert_id();
-                        if ($task_id) {
-                            $assignee_data = [
+                            $task_id = $this->db->insert_id();
+                            if ($task_id) {
+                                $assignee_data = [
                                 'taskid'   => $task_id,
                                 'assignee' => $mail->responsible,
                             ];
 
-                            $this->tasks_model->add_task_assignees($assignee_data, true);
-                            $this->handleLeadsEmailIntegrationAttachments($message, false, $task_id);
-                            hooks()->do_action('after_add_task', $task_id);
-                        }
+                                $this->tasks_model->add_task_assignees($assignee_data, true);
+                                $this->handleLeadsEmailIntegrationAttachments($message, false, $task_id);
+                                hooks()->do_action('after_add_task', $task_id);
+                            }
 
-                        if ($mail->delete_after_import == 1) {
-                            $message->delete();
-                            $connection->expunge();
+                            if ($mail->delete_after_import == 1) {
+                                $message->delete();
+                                $connection->expunge();
+                            } else {
+                                $message->markAsSeen();
+                            }
                         } else {
                             $message->markAsSeen();
                         }
-                    } else {
-                        $message->markAsSeen();
-                    }
-                    // Exists no need to do anything
-                    continue;
-                }
-                // Not exists its okey.
-                // Now we need to check the leads table
-                $this->db->where('email', $fromAddress);
-                $lead = $this->db->get(db_prefix() . 'leads')->row();
-
-                $lead = hooks()->apply_filters('leads_email_integration_lead_check', $lead, $message);
-
-                if ($lead) {
-                    // Check if the lead uid is the same with the email uid
-                    if ($lead->email_integration_uid == $message->getNumber()) {
-                        $message->markAsSeen();
-                        // Set message to seen to in the next time we dont need to loop over this message
-
+                        // Exists no need to do anything
                         continue;
                     }
-                    // Check if this uid exists in the emails data log table
-                    $this->db->where('emailid', $message->getNumber());
-                    $exists_in_emails = $this->db->count_all_results(db_prefix() . 'lead_integration_emails');
-                    if ($exists_in_emails > 0) {
-                        // Set message to seen to in the next time we dont need to loop over this message
-                        $message->markAsSeen();
+                    // Not exists its okey.
+                    // Now we need to check the leads table
+                    $this->db->where('email', $fromAddress);
+                    $lead = $this->db->get(db_prefix() . 'leads')->row();
 
-                        continue;
-                    }
-                    // We dont need the junk leads
-                    if ($lead->junk == 1) {
-                        // Set message to seen to in the next time we dont need to loop over this message
-                        $message->markAsSeen();
+                    $lead = hooks()->apply_filters('leads_email_integration_lead_check', $lead, $message);
 
-                        continue;
-                    }
-                    // More the one time email from this lead, insert into the lead emails log table
-                    $this->db->insert(db_prefix() . 'lead_integration_emails', [
+                    if ($lead) {
+                        // Check if the lead uid is the same with the email uid
+                        if ($lead->email_integration_uid == $message->getNumber()) {
+                            $message->markAsSeen();
+                            // Set message to seen to in the next time we dont need to loop over this message
+
+                            continue;
+                        }
+                        // Check if this uid exists in the emails data log table
+                        $this->db->where('emailid', $message->getNumber());
+                        $exists_in_emails = $this->db->count_all_results(db_prefix() . 'lead_integration_emails');
+                        if ($exists_in_emails > 0) {
+                            // Set message to seen to in the next time we dont need to loop over this message
+                            $message->markAsSeen();
+
+                            continue;
+                        }
+                        // We dont need the junk leads
+                        if ($lead->junk == 1) {
+                            // Set message to seen to in the next time we dont need to loop over this message
+                            $message->markAsSeen();
+
+                            continue;
+                        }
+                        // More the one time email from this lead, insert into the lead emails log table
+                        $this->db->insert(db_prefix() . 'lead_integration_emails', [
                         'leadid'    => $lead->id,
                         'subject'   => $message->getSubject(),
                         'body'      => $body,
@@ -1432,26 +1443,26 @@ class Cron_model extends App_Model
                         'emailid'   => $message->getNumber(),
                     ]);
 
-                    $inserted_email_id = $this->db->insert_id();
-                    if ($mail->delete_after_import == 1) {
-                        $message->delete();
-                        $connection->expunge();
-                    } else {
-                        $message->markAsSeen();
-                    }
-                    $this->_notification_lead_email_integration('not_received_one_or_more_messages_lead', $mail, $lead->id);
-                    $this->handleLeadsEmailIntegrationAttachments($message, $lead->id);
-                    hooks()->do_action('existing_lead_email_inserted_from_email_integration', [
+                        $inserted_email_id = $this->db->insert_id();
+                        if ($mail->delete_after_import == 1) {
+                            $message->delete();
+                            $connection->expunge();
+                        } else {
+                            $message->markAsSeen();
+                        }
+                        $this->_notification_lead_email_integration('not_received_one_or_more_messages_lead', $mail, $lead->id);
+                        $this->handleLeadsEmailIntegrationAttachments($message, $lead->id);
+                        hooks()->do_action('existing_lead_email_inserted_from_email_integration', [
                         'email'    => $message,
                         'lead'     => $lead,
                         'email_id' => $inserted_email_id,
                     ]);
-                    // Exists not need to do anything except to add the email
-                    continue;
-                }
+                        // Exists not need to do anything except to add the email
+                        continue;
+                    }
 
-                // Lets insert into the leads table
-                $lead_data = [
+                    // Lets insert into the leads table
+                    $lead_data = [
                     'name'                               => $fromName,
                     'assigned'                           => $mail->responsible,
                     'dateadded'                          => date('Y-m-d H:i:s'),
@@ -1465,48 +1476,48 @@ class Cron_model extends App_Model
                     'is_public'                          => $mail->mark_public,
                 ];
 
-                $lead_data = hooks()->apply_filters('before_insert_lead_from_email_integration', $lead_data);
+                    $lead_data = hooks()->apply_filters('before_insert_lead_from_email_integration', $lead_data);
 
-                $this->db->insert(db_prefix() . 'leads', $lead_data);
-                $insert_id = $this->db->insert_id();
-                if ($insert_id) {
-                    foreach ($formFields as $field => $value) {
-                        if ($field == 'country') {
-                            if ($value == '') {
-                                $value = 0;
-                            } else {
-                                $this->db->where('iso2', $value);
-                                $this->db->or_where('short_name', $value);
-                                $this->db->or_where('long_name', $value);
-                                $country = $this->db->get(db_prefix() . 'countries')->row();
-                                if ($country) {
-                                    $value = $country->country_id;
-                                } else {
+                    $this->db->insert(db_prefix() . 'leads', $lead_data);
+                    $insert_id = $this->db->insert_id();
+                    if ($insert_id) {
+                        foreach ($formFields as $field => $value) {
+                            if ($field == 'country') {
+                                if ($value == '') {
                                     $value = 0;
+                                } else {
+                                    $this->db->where('iso2', $value);
+                                    $this->db->or_where('short_name', $value);
+                                    $this->db->or_where('long_name', $value);
+                                    $country = $this->db->get(db_prefix() . 'countries')->row();
+                                    if ($country) {
+                                        $value = $country->country_id;
+                                    } else {
+                                        $value = 0;
+                                    }
                                 }
                             }
-                        }
 
-                        if ($field == 'address' || $field == 'description') {
-                            $value = nl2br($value);
-                        }
+                            if ($field == 'address' || $field == 'description') {
+                                $value = nl2br($value);
+                            }
 
-                        $this->db->where('id', $insert_id);
-                        $this->db->update(db_prefix() . 'leads', [
+                            $this->db->where('id', $insert_id);
+                            $this->db->update(db_prefix() . 'leads', [
                             $field => $value,
                         ]);
-                    }
+                        }
 
-                    foreach ($lead_form_custom_fields as $cf_id => $value) {
-                        $this->db->insert(db_prefix() . 'customfieldsvalues', [
-                            'relid'   => $insert_id,
-                            'fieldto' => 'leads',
-                            'fieldid' => $cf_id,
-                            'value'   => $value,
-                        ]);
-                    }
+                        foreach ($lead_form_custom_fields as $cf_id => $value) {
+                            $this->db->insert(db_prefix() . 'customfieldsvalues', [
+                                'relid'   => $insert_id,
+                                'fieldto' => 'leads',
+                                'fieldid' => $cf_id,
+                                'value'   => $value,
+                            ]);
+                        }
 
-                    $this->db->insert(db_prefix() . 'lead_integration_emails', [
+                        $this->db->insert(db_prefix() . 'lead_integration_emails', [
                         'leadid'    => $insert_id,
                         'subject'   => $message->getSubject(),
                         'body'      => $body,
@@ -1514,24 +1525,33 @@ class Cron_model extends App_Model
                         'emailid'   => $message->getNumber(),
                     ]);
 
-                    if ($mail->delete_after_import == 1) {
-                        $message->delete();
-                        $connection->expunge();
-                    } else {
-                        $message->markAsSeen();
+                        if ($mail->delete_after_import == 1) {
+                            $message->delete();
+                            $connection->expunge();
+                        } else {
+                            $message->markAsSeen();
+                        }
+
+                        // Set message to seen to in the next time we dont need to loop over this message
+                        $this->_notification_lead_email_integration('not_received_lead_imported_email_integration', $mail, $insert_id);
+                        $this->leads_model->log_lead_activity($insert_id, 'not_received_lead_imported_email_integration', true);
+                        $this->handleLeadsEmailIntegrationAttachments($message, $insert_id);
+                        $this->leads_model->lead_assigned_member_notification($insert_id, $mail->responsible, true);
+
+                        hooks()->do_action('lead_created', $insert_id);
+
+                        hooks()->do_action('lead_created_from_email_integration', $insert_id);
                     }
+                } catch (MessageDoesNotExistException $e) {
+                    continue;
+                } catch (UnexpectedEncodingException|UnsupportedCharsetException $e) {
+                    $message->markAsSeen();
 
-                    // Set message to seen to in the next time we dont need to loop over this message
-                    $this->_notification_lead_email_integration('not_received_lead_imported_email_integration', $mail, $insert_id);
-                    $this->leads_model->log_lead_activity($insert_id, 'not_received_lead_imported_email_integration', true);
-                    $this->handleLeadsEmailIntegrationAttachments($message, $insert_id);
-                    $this->leads_model->lead_assigned_member_notification($insert_id, $mail->responsible, true);
-
-                    hooks()->do_action('lead_created', $insert_id);
-
-                    hooks()->do_action('lead_created_from_email_integration', $insert_id);
+                    continue;
                 }
             }
+
+            $this->currentImapMessage = null;
         }
     }
 
@@ -1585,6 +1605,8 @@ class Cron_model extends App_Model
             $this->load->model('tickets_model');
 
             foreach ($messages as $message) {
+                $this->currentImapMessage = $message;
+
                 try {
                     $body = $message->getBodyHtml() ?? $message->getBodyText();
                     // Some mail clients for the text/plain part add only Not set
@@ -1695,12 +1717,14 @@ class Cron_model extends App_Model
                     }
                 } catch (MessageDoesNotExistException $e) {
                     continue;
-                } catch (UnexpectedEncodingException $e) {
+                } catch (UnexpectedEncodingException|UnsupportedCharsetException $e) {
+                    log_activity('Failed to auto importing tickets for department ' . $dept['email'] . '. Error:' . $e->getMessage());
                     $message->markAsSeen();
 
                     continue;
                 }
             }
+            $this->currentImapMessage = null;
         }
     }
 
@@ -1867,5 +1891,16 @@ class Cron_model extends App_Model
         }
 
         return true;
+    }
+
+    private function hasTimeoutOccurred()
+    {
+        $lastError = error_get_last();
+
+        if (!$lastError) {
+            return false;
+        }
+
+        return startsWith($lastError['message'], 'Maximum execution time');
     }
 }

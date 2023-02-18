@@ -138,6 +138,10 @@ class Tickets_model extends App_Model
                                 $data['email'] = $email;
                             }
 
+                            if (count($cc) > 0) {
+                                $data['cc'] = $cc;
+                            }
+
                             $reply_id = $this->add_reply($data, $tid, $result->staffid, $attachments);
                             if ($reply_id) {
                                 $mailstatus = 'Ticket Reply Imported Successfully';
@@ -189,6 +193,9 @@ class Tickets_model extends App_Model
                                         }
                                     }
                                     if (!isset($abuse)) {
+                                        if (count($cc) > 0) {
+                                            $data['cc'] = $cc;
+                                        }
                                         $reply_id = $this->add_reply($data, $tid, null, $attachments);
                                         if ($reply_id) {
                                             // Dont change this line
@@ -241,8 +248,8 @@ class Tickets_model extends App_Model
             'date'     => date('Y-m-d H:i:s'),
             'email_to' => $to,
             'name'     => $name ?: 'Unknown',
-            'email'    => $email,
-            'subject'  => $subject,
+            'email'    => $email ?: 'N/A',
+            'subject'  => $subject ?: 'N/A',
             'message'  => $message,
             'status'   => $mailstatus,
         ]);
@@ -537,38 +544,24 @@ class Tickets_model extends App_Model
             if ($admin == null) {
                 $this->load->model('departments_model');
                 $this->load->model('staff_model');
-                $staff = $this->staff_model->get('', ['active' => 1]);
 
-                $notifiedUsers                           = [];
-                $notificationForStaffMemberOnTicketReply = get_option('receive_notification_on_new_ticket_replies') == 1;
-
+                $notifiedUsers = [];
+                $staff         = $this->getStaffMembersForTicketNotification($ticket->department, $ticket->assigned);
                 foreach ($staff as $staff_key => $member) {
-                    if (
-                        get_option('access_tickets_to_none_staff_members') == 0
-                        && !is_staff_member($member['staffid'])
-                    ) {
-                        continue;
-                    }
-
-                    $staff_departments = $this->departments_model->get_staff_departments($member['staffid'], true);
-
-                    if (in_array($ticket->department, $staff_departments)) {
-                        send_mail_template('ticket_new_reply_to_staff', $ticket, $member, $_attachments);
-
-                        if ($notificationForStaffMemberOnTicketReply) {
-                            $notified = add_notification([
-                                'description'     => 'not_new_ticket_reply',
-                                'touserid'        => $member['staffid'],
-                                'fromcompany'     => 1,
-                                'fromuserid'      => 0,
-                                'link'            => 'tickets/ticket/' . $id,
-                                'additional_data' => serialize([
-                                    $ticket->subject,
-                                ]),
-                            ]);
-                            if ($notified) {
-                                array_push($notifiedUsers, $member['staffid']);
-                            }
+                    send_mail_template('ticket_new_reply_to_staff', $ticket, $member, $_attachments);
+                    if (get_option('receive_notification_on_new_ticket_replies') == 1) {
+                        $notified = add_notification([
+                            'description'     => 'not_new_ticket_reply',
+                            'touserid'        => $member['staffid'],
+                            'fromcompany'     => 1,
+                            'fromuserid'      => 0,
+                            'link'            => 'tickets/ticket/' . $id,
+                            'additional_data' => serialize([
+                                $ticket->subject,
+                            ]),
+                        ]);
+                        if ($notified) {
+                            array_push($notifiedUsers, $member['staffid']);
                         }
                     }
                 }
@@ -593,11 +586,19 @@ class Tickets_model extends App_Model
                 if ($sendEmail) {
                     send_mail_template('ticket_new_reply_to_customer', $ticket, $email, $_attachments, $cc);
                 }
+            }
 
-                if ($cc) {
-                    $this->db->where('ticketid', $id);
-                    $this->db->update('tickets', ['cc' => is_array($cc) ? implode(',', $cc) : $cc]);
+            if ($cc) {
+                // imported reply
+                if (is_array($cc)) {
+                    if ($ticket->cc) {
+                        $currentCC = explode(',', $ticket->cc);
+                        $cc        = array_unique([$cc, $currentCC]);
+                    }
+                    $cc = implode(',', $cc);
                 }
+                $this->db->where('ticketid', $id);
+                $this->db->update('tickets', ['cc' => $cc]);
             }
             hooks()->do_action('after_ticket_reply_added', [
                 'data'    => $data,
@@ -879,41 +880,24 @@ class Tickets_model extends App_Model
 
             $template = 'ticket_created_to_customer';
             if ($admin == null) {
-                $template = 'ticket_autoresponse';
-
-                $this->load->model('departments_model');
-                $this->load->model('staff_model');
-                $staff = $this->staff_model->get('', ['active' => 1]);
-
-                $notifiedUsers                              = [];
-                $notificationForStaffMemberOnTicketCreation = get_option('receive_notification_on_new_ticket') == 1;
-
-                foreach ($staff as $member) {
-                    if (
-                        get_option('access_tickets_to_none_staff_members') == 0
-                        && !is_staff_member($member['staffid'])
-                    ) {
-                        continue;
-                    }
-                    $staff_departments = $this->departments_model->get_staff_departments($member['staffid'], true);
-
-                    if (in_array($data['department'], $staff_departments)) {
-                        send_mail_template('ticket_created_to_staff', $ticketid, $data['userid'], $data['contactid'], $member, $_attachments);
-
-                        if ($notificationForStaffMemberOnTicketCreation) {
-                            $notified = add_notification([
-                                'description'     => 'not_new_ticket_created',
-                                'touserid'        => $member['staffid'],
-                                'fromcompany'     => 1,
-                                'fromuserid'      => 0,
-                                'link'            => 'tickets/ticket/' . $ticketid,
-                                'additional_data' => serialize([
-                                    $data['subject'],
-                                ]),
-                            ]);
-                            if ($notified) {
-                                array_push($notifiedUsers, $member['staffid']);
-                            }
+                $template      = 'ticket_autoresponse';
+                $notifiedUsers = [];
+                $staffToNotify = $this->getStaffMembersForTicketNotification($data['department'], $data['assigned'] ?? 0);
+                foreach ($staffToNotify as $member) {
+                    send_mail_template('ticket_created_to_staff', $ticketid, $data['userid'], $data['contactid'], $member, $_attachments);
+                    if (get_option('receive_notification_on_new_ticket') == 1) {
+                        $notified = add_notification([
+                            'description'     => 'not_new_ticket_created',
+                            'touserid'        => $member['staffid'],
+                            'fromcompany'     => 1,
+                            'fromuserid'      => 0,
+                            'link'            => 'tickets/ticket/' . $ticketid,
+                            'additional_data' => serialize([
+                                $data['subject'],
+                            ]),
+                        ]);
+                        if ($notified) {
+                            $notifiedUsers[] = $member['staffid'];
                         }
                     }
                 }
@@ -1036,6 +1020,8 @@ class Tickets_model extends App_Model
         }
         if ($affectedRows > 0) {
             log_activity('Ticket Deleted [ID: ' . $ticketid . ']');
+
+            hooks()->do_action('after_ticket_deleted', $ticketid);
 
             return true;
         }
@@ -1644,7 +1630,8 @@ class Tickets_model extends App_Model
      * @param array $tickets id's of tickets to check
      * @return array
      */
-    public function get_already_merged_tickets($tickets) {
+    public function get_already_merged_tickets($tickets)
+    {
         if (count($tickets) === 0) {
             return [];
         }
@@ -1695,6 +1682,34 @@ class Tickets_model extends App_Model
     {
         $this->db->select('ticketid,staff_id_replying');
         $this->db->where('ticketid', $ticketId);
+
         return $this->db->get(db_prefix() . 'tickets')->row();
+    }
+
+    private function getStaffMembersForTicketNotification($department, $assignedStaff = 0)
+    {
+        $this->load->model('departments_model');
+        $this->load->model('staff_model');
+
+        $staffToNotify = [];
+        if ($assignedStaff != 0 && get_option('staff_related_ticket_notification_to_assignee_only') == 1) {
+            $member = $this->staff_model->get($assignedStaff, ['active' => 1]);
+            if ($member) {
+                $staffToNotify[] = (array) $member;
+            }
+        } else {
+            $staff = $this->staff_model->get('', ['active' => 1]);
+            foreach ($staff as $member) {
+                if (get_option('access_tickets_to_none_staff_members') == 0 && !is_staff_member($member['staffid'])) {
+                    continue;
+                }
+                $staff_departments = $this->departments_model->get_staff_departments($member['staffid'], true);
+                if (in_array($department, $staff_departments)) {
+                    $staffToNotify[] = $member;
+                }
+            }
+        }
+
+        return $staffToNotify;
     }
 }

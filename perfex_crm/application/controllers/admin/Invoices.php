@@ -146,7 +146,7 @@ class Invoices extends AdminController
             }
         }
 
-        if (total_rows(db_prefix() . 'invoices', [
+        if (total_rows('invoices', [
             'YEAR(date)' => date('Y', strtotime(to_sql_date($date))),
             'number' => $number,
             'status !=' => Invoices_model::STATUS_DRAFT,
@@ -299,6 +299,20 @@ class Invoices extends AdminController
                 if (!has_permission('invoices', '', 'create')) {
                     access_denied('invoices');
                 }
+
+                if (hooks()->apply_filters('validate_invoice_number', true)) {
+                    $number = ltrim($invoice_data['number'], '0');
+                    if (total_rows('invoices', [
+                        'YEAR(date)' => date('Y', strtotime(to_sql_date($invoice_data['date']))),
+                        'number'     => $number,
+                        'status !='  => Invoices_model::STATUS_DRAFT,
+                    ])) {
+                        set_alert('warning', _l('invoice_number_exists'));
+
+                        redirect(admin_url('invoices/invoice'));
+                    }
+                }
+
                 $id = $this->invoices_model->add($invoice_data);
                 if ($id) {
                     set_alert('success', _l('added_successfully', _l('invoice')));
@@ -316,10 +330,26 @@ class Invoices extends AdminController
                 if (!has_permission('invoices', '', 'edit')) {
                     access_denied('invoices');
                 }
+
+                // If number not set, is draft
+                if (hooks()->apply_filters('validate_invoice_number', true) && isset($invoice_data['number'])) {
+                    $number = trim(ltrim($invoice_data['number'], '0'));
+                    if (total_rows('invoices', [
+                        'YEAR(date)' => date('Y', strtotime(to_sql_date($invoice_data['date']))),
+                        'number'     => $number,
+                        'status !='  => Invoices_model::STATUS_DRAFT,
+                        'id !='      => $id,
+                    ])) {
+                        set_alert('warning', _l('invoice_number_exists'));
+
+                        redirect(admin_url('invoices/invoice/' . $id));
+                    }
+                }
                 $success = $this->invoices_model->update($invoice_data, $id);
                 if ($success) {
                     set_alert('success', _l('updated_successfully', _l('invoice')));
                 }
+
                 redirect(admin_url('invoices/list_invoices/' . $id));
             }
         }

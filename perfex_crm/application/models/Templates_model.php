@@ -50,6 +50,7 @@ class Templates_model extends App_Model
             return $template;
         }
 
+        $this->db->order_by('name', 'asc');
         $templates = $this->db->get(db_prefix() . 'templates')->result_array();
         return $templates;
     }

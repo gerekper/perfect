@@ -1,5 +1,7 @@
 <?php
 
+use app\services\utilities\Arr;
+
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Clients_model extends App_Model
@@ -108,15 +110,34 @@ class Clients_model extends App_Model
     public function add($data, $withContact = false)
     {
         $contact_data = [];
+        // From Lead Convert to client
+        if (isset($data['send_set_password_email'])) {
+            $contact_data['send_set_password_email'] = true;
+        }
+
+        if (isset($data['donotsendwelcomeemail'])) {
+            $contact_data['donotsendwelcomeemail'] = true;
+        }
+
+        $data = $this->check_zero_columns($data);
+
+        $data = hooks()->apply_filters('before_client_added', $data);
+
         foreach ($this->contact_columns as $field) {
-            if (isset($data[$field])) {
-                $contact_data[$field] = $data[$field];
-                // Phonenumber is also used for the company profile
-                if ($field != 'phonenumber') {
-                    unset($data[$field]);
-                }
+            if (!isset($data[$field])) {
+                continue;
+            }
+
+            $contact_data[$field] = $data[$field];
+
+            // Phonenumber is also used for the company profile
+            if ($field != 'phonenumber') {
+                unset($data[$field]);
             }
         }
+
+        $groups_in     = Arr::pull($data, 'groups_in') ?? [];
+        $custom_fields = Arr::pull($data, 'custom_fields') ?? [];
 
         // From customer profile register
         if (isset($data['contact_phonenumber'])) {
@@ -124,32 +145,15 @@ class Clients_model extends App_Model
             unset($data['contact_phonenumber']);
         }
 
-        if (isset($data['custom_fields'])) {
-            $custom_fields = $data['custom_fields'];
-            unset($data['custom_fields']);
-        }
+        $this->db->insert(db_prefix() . 'clients', array_merge($data, [
+            'datecreated' => date('Y-m-d H:i:s'),
+            'addedfrom'   => is_staff_logged_in() ? get_staff_user_id() : 0,
+        ]));
 
-        if (isset($data['groups_in'])) {
-            $groups_in = $data['groups_in'];
-            unset($data['groups_in']);
-        }
+        $client_id = $this->db->insert_id();
 
-        $data = $this->check_zero_columns($data);
-
-        $data['datecreated'] = date('Y-m-d H:i:s');
-
-        if (is_staff_logged_in()) {
-            $data['addedfrom'] = get_staff_user_id();
-        }
-
-        // New filter action
-        $data = hooks()->apply_filters('before_client_added', $data);
-
-        $this->db->insert(db_prefix() . 'clients', $data);
-
-        $userid = $this->db->insert_id();
-        if ($userid) {
-            if (isset($custom_fields)) {
+        if ($client_id) {
+            if (count($custom_fields) > 0) {
                 $_custom_fields = $custom_fields;
                 // Possible request from the register area with 2 types of custom fields for contact and for comapny/customer
                 if (count($custom_fields) == 2) {
@@ -162,26 +166,25 @@ class Clients_model extends App_Model
                         unset($custom_fields);
                     }
                 }
-                handle_custom_fields_post($userid, $custom_fields);
+
+                handle_custom_fields_post($client_id, $custom_fields);
             }
 
             /**
              * Used in Import, Lead Convert, Register
              */
             if ($withContact == true) {
-                $contact_id = $this->add_contact($contact_data, $userid, $withContact);
+                $contact_id = $this->add_contact($contact_data, $client_id, $withContact);
             }
 
-            if (isset($groups_in)) {
-                foreach ($groups_in as $group) {
-                    $this->db->insert(db_prefix() . 'customer_groups', [
-                        'customer_id' => $userid,
+            foreach ($groups_in as $group) {
+                $this->db->insert('customer_groups', [
+                        'customer_id' => $client_id,
                         'groupid'     => $group,
                     ]);
-                }
             }
 
-            $log = 'ID: ' . $userid;
+            $log = 'ID: ' . $client_id;
 
             if ($log == '' && isset($contact_id)) {
                 $log = get_contact_full_name($contact_id);
@@ -194,12 +197,21 @@ class Clients_model extends App_Model
                 $isStaff = get_staff_user_id();
             }
 
-            hooks()->do_action('after_client_added', $userid);
+            do_action_deprecated('after_client_added', [$client_id], '2.9.4', 'after_client_created');
+
+            hooks()->do_action('after_client_created', [
+                'id'            => $client_id,
+                'data'          => $data,
+                'contact_data'  => $contact_data,
+                'custom_fields' => $custom_fields,
+                'groups_in'     => $groups_in,
+                'with_contact'  => $withContact,
+            ]);
 
             log_activity('New Client Created [' . $log . ']', $isStaff);
         }
 
-        return $userid;
+        return $client_id;
     }
 
     /**
@@ -210,98 +222,91 @@ class Clients_model extends App_Model
      */
     public function update($data, $id, $client_request = false)
     {
-        if (isset($data['update_all_other_transactions'])) {
-            $update_all_other_transactions = true;
-            unset($data['update_all_other_transactions']);
-        }
-
-        if (isset($data['update_credit_notes'])) {
-            $update_credit_notes = true;
-            unset($data['update_credit_notes']);
-        }
-
-        $affectedRows = 0;
-        if (isset($data['custom_fields'])) {
-            $custom_fields = $data['custom_fields'];
-            if (handle_custom_fields_post($id, $custom_fields)) {
-                $affectedRows++;
-            }
-            unset($data['custom_fields']);
-        }
-
-        if (isset($data['groups_in'])) {
-            $groups_in = $data['groups_in'];
-            unset($data['groups_in']);
-        }
-
-        $data = $this->check_zero_columns($data);
+        $updated = false;
+        $data    = $this->check_zero_columns($data);
 
         $data = hooks()->apply_filters('before_client_updated', $data, $id);
+
+        $update_all_other_transactions = (bool) Arr::pull($data, 'update_all_other_transactions');
+        $update_credit_notes           = (bool) Arr::pull($data, 'update_credit_notes');
+        $custom_fields                 = Arr::pull($data, 'custom_fields') ?? [];
+        $groups_in                     = Arr::pull($data, 'groups_in') ?? false;
+
+        if (handle_custom_fields_post($id, $custom_fields)) {
+            $updated = true;
+        }
 
         $this->db->where('userid', $id);
         $this->db->update(db_prefix() . 'clients', $data);
 
         if ($this->db->affected_rows() > 0) {
-            $affectedRows++;
+            $updated = true;
         }
 
-        if (isset($update_all_other_transactions) || isset($update_credit_notes)) {
+        if ($update_all_other_transactions || $update_credit_notes) {
             $transactions_update = [
-                    'billing_street'   => $data['billing_street'],
-                    'billing_city'     => $data['billing_city'],
-                    'billing_state'    => $data['billing_state'],
-                    'billing_zip'      => $data['billing_zip'],
-                    'billing_country'  => $data['billing_country'],
-                    'shipping_street'  => $data['shipping_street'],
-                    'shipping_city'    => $data['shipping_city'],
-                    'shipping_state'   => $data['shipping_state'],
-                    'shipping_zip'     => $data['shipping_zip'],
-                    'shipping_country' => $data['shipping_country'],
-                ];
-            if (isset($update_all_other_transactions)) {
+                'billing_street'   => $data['billing_street'],
+                'billing_city'     => $data['billing_city'],
+                'billing_state'    => $data['billing_state'],
+                'billing_zip'      => $data['billing_zip'],
+                'billing_country'  => $data['billing_country'],
+                'shipping_street'  => $data['shipping_street'],
+                'shipping_city'    => $data['shipping_city'],
+                'shipping_state'   => $data['shipping_state'],
+                'shipping_zip'     => $data['shipping_zip'],
+                'shipping_country' => $data['shipping_country'],
+            ];
 
+            if ($update_all_other_transactions) {
                 // Update all invoices except paid ones.
-                $this->db->where('clientid', $id);
-                $this->db->where('status !=', 2);
-                $this->db->update(db_prefix() . 'invoices', $transactions_update);
+                $this->db->where('clientid', $id)
+                ->where('status !=', 2)
+                ->update('invoices', $transactions_update);
+
                 if ($this->db->affected_rows() > 0) {
-                    $affectedRows++;
+                    $updated = true;
                 }
 
                 // Update all estimates
-                $this->db->where('clientid', $id);
-                $this->db->update(db_prefix() . 'estimates', $transactions_update);
+                $this->db->where('clientid', $id)
+                    ->update('estimates', $transactions_update);
                 if ($this->db->affected_rows() > 0) {
-                    $affectedRows++;
+                    $updated = true;
                 }
             }
-            if (isset($update_credit_notes)) {
-                $this->db->where('clientid', $id);
-                $this->db->where('status !=', 2);
-                $this->db->update(db_prefix() . 'creditnotes', $transactions_update);
-                if ($this->db->affected_rows() > 0) {
-                    $affectedRows++;
-                }
-            }
-        }
 
-        if (!isset($groups_in)) {
-            $groups_in = false;
+            if ($update_credit_notes) {
+                $this->db->where('clientid', $id)
+                    ->where('status !=', 2)
+                    ->update('creditnotes', $transactions_update);
+
+                if ($this->db->affected_rows() > 0) {
+                    $updated = true;
+                }
+            }
         }
 
         if ($this->client_groups_model->sync_customer_groups($id, $groups_in)) {
-            $affectedRows++;
+            $updated = true;
         }
 
-        if ($affectedRows > 0) {
-            hooks()->do_action('after_client_updated', $id);
+        do_action_deprecated('after_client_updated', [$id], '2.9.4', 'client_updated');
 
+        hooks()->do_action('client_updated', [
+            'id'                            => $id,
+            'data'                          => $data,
+            'update_all_other_transactions' => $update_all_other_transactions,
+            'update_credit_notes'           => $update_credit_notes,
+            'custom_fields'                 => $custom_fields,
+            'groups_in'                     => $groups_in,
+            'updated'                       => &$updated,
+        ]);
+
+        if ($updated) {
             log_activity('Customer Info Updated [ID: ' . $id . ']');
-
-            return true;
         }
 
-        return false;
+        return $updated;
     }
 
     /**
@@ -1337,7 +1342,7 @@ class Clients_model extends App_Model
     public function change_client_status($id, $status)
     {
         $this->db->where('userid', $id);
-        $this->db->update(db_prefix() . 'clients', [
+        $this->db->update('clients', [
             'active' => $status,
         ]);
 
@@ -1684,9 +1689,9 @@ class Clients_model extends App_Model
         $this->db->select('clientid,contact_notification,notify_contacts');
         $this->db->from(db_prefix() . 'projects');
         $this->db->where('id', $projectId);
-        $project  = $this->db->get()->row();
+        $project = $this->db->get()->row();
 
-        if (!in_array($project->contact_notification, [1,2])) {
+        if (!in_array($project->contact_notification, [1, 2])) {
             return [];
         }
 

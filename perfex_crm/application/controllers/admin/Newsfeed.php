@@ -89,7 +89,7 @@ class Newsfeed extends AdminController
             $response .= '<div class="post-content mtop20 display-block">';
             if (!empty($visible_departments)) {
                 $visible_departments = substr($visible_departments, 0, -2);
-                $response .= '<i class="fa fa-question-circle" data-toggle="tooltip" data-title="' . _l('newsfeed_newsfeed_post_only_visible_to_departments', $visible_departments) . '"></i> ';
+                $response .= '<i class="fa-regular fa-circle-question" data-toggle="tooltip" data-title="' . _l('newsfeed_newsfeed_post_only_visible_to_departments', $visible_departments) . '"></i> ';
             }
             $response .= check_for_links($post['content']);
             $response .= '<div class="clearfix mbot10"></div>';
@@ -171,7 +171,7 @@ class Newsfeed extends AdminController
         if (!$this->newsfeed_model->user_liked_post($id)) {
             $_likes .= '<button type="button" class="btn btn-default btn-icon" onclick="like_post(' . $id . ')"> <i class="fa fa-heart"></i></button>';
         } else {
-            $_likes .= '<button type="button" class="btn btn-danger btn-icon" onclick="unlike_post(' . $id . ')"> <i class="fa fa-heart-o"></i></button>';
+            $_likes .= '<button type="button" class="btn btn-danger btn-icon" onclick="unlike_post(' . $id . ')"> <i class="fa-regular fa-heart"></i></button>';
         }
         $_likes .= '</div>';
         if (total_rows(db_prefix() . 'newsfeed_post_likes', [
@@ -276,7 +276,7 @@ class Newsfeed extends AdminController
         ]) . '</a>';
         $_comments .= '</div>'; // end comment-image
         if ($comment['userid'] == get_staff_user_id() || is_admin()) {
-            $_comments .= '<span class="pull-right"><a href="#" class="remove-post-comment" onclick="remove_post_comment(' . $comment['id'] . ',' . $comment['postid'] . '); return false;"><i class="fa fa-remove bold"></i></span></a>';
+            $_comments .= '<span class="pull-right"><a href="#" class="remove-post-comment" onclick="remove_post_comment(' . $comment['id'] . ',' . $comment['postid'] . '); return false;"><i class="fa fa-remove"></i></span></a>';
         }
         $_comments .= '<div class="media-body">';
         $_comments .= '<p class="no-margin comment-content"><a href="' . admin_url('profile/' . $comment['userid']) . '">' . get_staff_full_name($comment['userid']) . '</a> ' . check_for_links($comment['content']) . '</p>';

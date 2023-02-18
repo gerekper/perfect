@@ -88,11 +88,11 @@ function app_format_money($amount, $currency, $excludeSymbol = false)
      *  Check ewhether the amount is numeric and valid
      */
 
-    if (!is_numeric($amount) && $amount != 0 ) {
+    if (!is_numeric($amount) && $amount != 0) {
         return $amount;
     }
 
-    if(is_null($amount)) {
+    if (is_null($amount)) {
         $amount = 0;
     }
 
@@ -353,14 +353,14 @@ if (!function_exists('format_customer_info')) {
         $phone = '';
         if ($for == 'statement' && isset($data->phonenumber)) {
             $phone = $data->phonenumber;
-        } elseif ($type == 'billing' && isset($data->client->phonenumber)) {
+        } elseif (in_array($type, ['billing', 'shipping']) && isset($data->client->phonenumber)) {
             $phone = $data->client->phonenumber;
         }
 
         $vat = '';
         if ($for == 'statement' && isset($data->vat)) {
             $vat = $data->vat;
-        } elseif ($type == 'billing' && isset($data->client->vat)) {
+        } elseif (in_array($type, ['billing', 'shipping']) && isset($data->client->vat)) {
             $vat = $data->client->vat;
         }
 

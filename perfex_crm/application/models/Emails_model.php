@@ -170,6 +170,10 @@ class Emails_model extends App_Model
      */
     public function send_simple_email($email, $subject, $message)
     {
+        if (defined('DEMO') && DEMO) {
+            return true;
+        }
+
         $cnf = [
             'from_email' => get_option('smtp_email'),
             'from_name'  => get_option('companyname'),

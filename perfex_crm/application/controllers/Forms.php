@@ -35,9 +35,7 @@ class Forms extends ClientsController
             $data['form_fields'] = [];
         }
 
-        //TODO: Submit form logic
         if ($this->input->post('key')) {
-            // TODO: CREATE/SEND EMAIL TEMPLATE FOR NEW ESTIMATE REQUEST AND ASSIGNED
 
             if ($this->input->post('key') == $key) {
                 $post_data  = $this->input->post();
@@ -58,7 +56,7 @@ class Forms extends ClientsController
 
                         if (!isset($post_data[$field->name])) {
                             $submission[] = [
-                            'label' => $field->label,
+                            'label' => property_exists($field, 'label') ? $field->label : $field->name,
                             'name'  => $field->name,
                             'value' => '',
                             ];
@@ -69,7 +67,7 @@ class Forms extends ClientsController
                         if ($field->type == 'radio-group') {
                             $index        = array_search($post_data[$field->name], array_column($field->values, 'value'));
                             $submission[] = [
-                                'label' => $field->label,
+                                'label' => property_exists($field, 'label') ? $field->label : $field->name,
                                 'name'  => $field->name,
                                 'value' => $field->values[$index]->label,
                             ];
@@ -90,7 +88,7 @@ class Forms extends ClientsController
                             }
 
                             $submission[] = [
-                                'label' => $field->label,
+                                'label' => property_exists($field, 'label') ? $field->label : $field->name,
                                 'name'  => $field->name,
                                 'value' => $value,
                             ];
@@ -100,7 +98,7 @@ class Forms extends ClientsController
 
                         if ($field->type == 'date') {
                             $submission[] = [
-                                'label' => $field->label,
+                                'label' => property_exists($field, 'label') ? $field->label : $field->name,
                                 'name'  => $field->name,
                                 'value' => $post_data[$field->name],
                             ];
@@ -110,7 +108,7 @@ class Forms extends ClientsController
 
                         if ($field->type == 'textarea') {
                             $submission[] = [
-                                'label' => $field->label,
+                                'label' => property_exists($field, 'label') ? $field->label : $field->name,
                                 'name'  => $field->name,
                                 'value' => nl2br($post_data[$field->name]),
                             ];
@@ -119,11 +117,10 @@ class Forms extends ClientsController
                         }
 
                         $submission[] = [
-                            'label' => $field->label,
+                            'label' => property_exists($field, 'label') ? $field->label : $field->name,
                             'name'  => $field->name,
                             'value' => $post_data[$field->name],
                         ];
-
                     }
 
                     if (isset($field->required)) {
@@ -279,10 +276,8 @@ class Forms extends ClientsController
         // the proper localization file
         $GLOBALS['locale'] = get_locale_key($form->language);
 
-        $data['form_fields'] = json_decode($form->form_data);
-        if (!$data['form_fields']) {
-            $data['form_fields'] = [];
-        }
+        $data['form_fields'] = $form->form_data ? json_decode($form->form_data) : [];
+
         if ($this->input->post('key')) {
             if ($this->input->post('key') == $key) {
                 $post_data = $this->input->post();
@@ -476,7 +471,7 @@ class Forms extends ClientsController
                     if ((isset($regular_fields['name']) && empty($regular_fields['name'])) || !isset($regular_fields['name'])) {
                         $regular_fields['name'] = 'Unknown';
                     }
-                    $regular_fields['name'] = $form->lead_name_prefix . $regular_fields['name'];
+                    $regular_fields['name']         = $form->lead_name_prefix . $regular_fields['name'];
                     $regular_fields['source']       = $form->lead_source;
                     $regular_fields['addedfrom']    = 0;
                     $regular_fields['lastcontact']  = null;
@@ -705,14 +700,12 @@ class Forms extends ClientsController
     public function ticket()
     {
         $provided_language = $this->input->get('language');
-        $form            = new stdClass();
-        $form->language  = $provided_language ? $provided_language : get_option('active_language');
-        $form->recaptcha = 1;
+        $form              = new stdClass();
+        $form->language    = $provided_language ? $provided_language : get_option('active_language');
+        $form->recaptcha   = 1;
 
         $this->lang->load($form->language . '_lang', $form->language);
-        if (file_exists(APPPATH . 'language/' . $form->language . '/custom_lang.php')) {
-            $this->lang->load('custom_lang', $form->language);
-        }
+        load_custom_lang_file($form->language);
 
         $form->success_submit_msg = _l('success_submit_msg');
 

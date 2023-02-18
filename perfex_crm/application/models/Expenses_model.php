@@ -1,5 +1,7 @@
 <?php
 
+use app\services\utilities\Arr;
+
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Expenses_model extends App_Model
@@ -348,7 +350,6 @@ class Expenses_model extends App_Model
     {
         $original_expense = $this->get($id);
 
-        $affectedRows = 0;
         $data['date'] = to_sql_date($data['date']);
         $data['note'] = nl2br($data['note']);
 
@@ -380,52 +381,43 @@ class Expenses_model extends App_Model
         unset($data['repeat_type_custom']);
         unset($data['repeat_every_custom']);
 
-        if (isset($data['custom_fields'])) {
-            $custom_fields = $data['custom_fields'];
-            if (handle_custom_fields_post($id, $custom_fields)) {
-                $affectedRows++;
-            }
-            unset($data['custom_fields']);
-        }
-
-        if (isset($data['create_invoice_billable'])) {
-            $data['create_invoice_billable'] = 1;
-        } else {
-            $data['create_invoice_billable'] = 0;
-        }
-
-        if (isset($data['billable'])) {
-            $data['billable'] = 1;
-        } else {
-            $data['billable'] = 0;
-        }
-
-        if (isset($data['send_invoice_to_customer'])) {
-            $data['send_invoice_to_customer'] = 1;
-        } else {
-            $data['send_invoice_to_customer'] = 0;
-        }
+        $data['create_invoice_billable']  = array_key_exists('create_invoice_billable', $data) ? 1 : 0;
+        $data['billable']                 = array_key_exists('billable', $data) ? 1 : 0;
+        $data['send_invoice_to_customer'] = array_key_exists('send_invoice_to_customer', $data) ? 1 : 0;
 
         if (isset($data['project_id']) && $data['project_id'] == '' || !isset($data['project_id'])) {
             $data['project_id'] = 0;
         }
 
-        $data = hooks()->apply_filters('before_expense_updated', $data, $id);
+        $updated       = false;
+        $data          = hooks()->apply_filters('before_expense_updated', $data, $id);
+        $custom_fields = Arr::pull($data, 'custom_fields') ?? [];
+
+        if (handle_custom_fields_post($id, $custom_fields)) {
+            $updated = true;
+        }
 
         $this->db->where('id', $id);
         $this->db->update(db_prefix() . 'expenses', $data);
+
         if ($this->db->affected_rows() > 0) {
-            hooks()->do_action('after_expense_updated', $id);
+            $updated = true;
+        }
 
+        do_action_deprecated('after_expense_updated', [$id], '2.9.4', 'expense_updated');
+
+        hooks()->do_action('expense_updated', [
+            'id'            => $id,
+            'data'          => $data,
+            'custom_fields' => $custom_fields,
+            'updated'       => &$updated,
+        ]);
+
+        if ($updated) {
             log_activity('Expense Updated [' . $id . ']');
-            $affectedRows++;
         }
 
-        if ($affectedRows > 0) {
-            return true;
-        }
-
-        return false;
+        return $updated;
     }
 
     /**

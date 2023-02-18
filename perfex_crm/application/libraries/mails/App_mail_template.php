@@ -89,6 +89,10 @@ class App_mail_template
      */
     public function send()
     {
+        if (defined('DEMO') && DEMO) {
+            return true;
+        }
+
         if (!method_exists($this, 'build')) {
             show_error('Mail class "' . get_class($this) . '" must contain "build" method.');
         }

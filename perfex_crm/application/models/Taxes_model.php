@@ -36,10 +36,19 @@ class Taxes_model extends App_Model
         unset($data['taxid']);
         $data['name']    = trim($data['name']);
         $data['taxrate'] = trim($data['taxrate']);
-        $this->db->insert(db_prefix() . 'taxes', $data);
+
+        $data = hooks()->apply_filters('before_tax_created', $data);
+
+        $this->db->insert('taxes', $data);
         $insert_id = $this->db->insert_id();
+
         if ($insert_id) {
             log_activity('New Tax Added [ID: ' . $insert_id . ', ' . $data['name'] . ']');
+
+            hooks()->do_action('after_tax_created', [
+                'id'   => $insert_id,
+                'data' => $data,
+            ]);
 
             return true;
         }
@@ -61,18 +70,25 @@ class Taxes_model extends App_Model
                 'tax_is_using_expenses' => true,
             ];
         }
+
+        $updated      = false;
         $taxid        = $data['taxid'];
         $original_tax = get_tax_by_id($taxid);
         unset($data['taxid']);
+
         $data['name']    = trim($data['name']);
         $data['taxrate'] = trim($data['taxrate']);
+
+        $data = hooks()->apply_filters('before_update_tax', $data, $taxid);
+
         $this->db->where('id', $taxid);
-        $this->db->update(db_prefix() . 'taxes', $data);
+        $this->db->update('taxes', $data);
+
         if ($this->db->affected_rows() > 0) {
-            log_activity('Tax Updated [ID: ' . $taxid . ', ' . $data['name'] . ']');
             // Check if this task is used in settings
             $default_taxes = unserialize(get_option('default_tax'));
-            $i             = 0;
+
+            $i = 0;
             foreach ($default_taxes as $tax) {
                 $current_tax = $this->get($taxid);
                 $tax_name    = $original_tax->name . '|' . $original_tax->taxrate;
@@ -81,12 +97,22 @@ class Taxes_model extends App_Model
                 }
                 $i++;
             }
-            update_option('default_tax', serialize($default_taxes));
 
-            return true;
+            update_option('default_tax', serialize($default_taxes));
+            $updated = true;
         }
 
-        return false;
+        hooks()->do_action('after_update_tax', [
+            'id'      => $taxid,
+            'data'    => $data,
+            'updated' => &$updated,
+        ]);
+
+        if ($updated) {
+            log_activity('Tax Updated [ID: ' . $taxid . ', ' . $data['name'] . ']');
+        }
+
+        return $updated;
     }
 
     /**

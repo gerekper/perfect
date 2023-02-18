@@ -109,7 +109,7 @@ class Projects extends AdminController
             $data['project']->settings->available_features = unserialize($data['project']->settings->available_features);
 
             $data['project_members'] = $this->projects_model->get_project_members($id);
-            $title                   = _l('edit', _l('project_lowercase'));
+            $title                   = _l('edit', _l('project'));
         }
 
         if ($this->input->get('customer_id')) {
@@ -216,8 +216,17 @@ class Projects extends AdminController
 
             $data['project_total_logged_time'] = $this->projects_model->total_logged_time($id);
 
-            $data['staff']     = $this->staff_model->get('', ['active' => 1]);
-            $percent           = $this->projects_model->calc_progress($id);
+            $data['staff']   = $this->staff_model->get('', ['active' => 1]);
+            $percent         = $this->projects_model->calc_progress($id);
+            $data['members'] = $this->projects_model->get_project_members($id);
+            foreach ($data['members'] as $key => $member) {
+                $data['members'][$key]['total_logged_time'] = 0;
+                $member_timesheets                          = $this->tasks_model->get_unique_member_logged_task_ids($member['staff_id'], ' AND task_id IN (SELECT id FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id="' . $this->db->escape_str($id) . '")');
+
+                foreach ($member_timesheets as $member_task) {
+                    $data['members'][$key]['total_logged_time'] += $this->tasks_model->calc_task_total_time($member_task->task_id, ' AND staff_id=' . $member['staff_id']);
+                }
+            }
             $data['bodyclass'] = '';
 
             $this->app_scripts->add(
@@ -228,16 +237,6 @@ class Projects extends AdminController
             );
 
             if ($group == 'project_overview') {
-                $data['members'] = $this->projects_model->get_project_members($id);
-                foreach ($data['members'] as $key => $member) {
-                    $data['members'][$key]['total_logged_time'] = 0;
-                    $member_timesheets                          = $this->tasks_model->get_unique_member_logged_task_ids($member['staff_id'], ' AND task_id IN (SELECT id FROM ' . db_prefix() . 'tasks WHERE rel_type="project" AND rel_id="' . $this->db->escape_str($id) . '")');
-
-                    foreach ($member_timesheets as $member_task) {
-                        $data['members'][$key]['total_logged_time'] += $this->tasks_model->calc_task_total_time($member_task->task_id, ' AND staff_id=' . $member['staff_id']);
-                    }
-                }
-
                 $data['project_total_days']        = round((human_to_unix($data['project']->deadline . ' 00:00') - human_to_unix($data['project']->start_date . ' 00:00')) / 3600 / 24);
                 $data['project_days_left']         = $data['project_total_days'];
                 $data['project_time_left_percent'] = 100;
@@ -326,6 +325,13 @@ class Projects extends AdminController
                 $data['estimates_sale_agents'] = $this->estimates_model->get_sale_agents();
                 $data['estimate_statuses']     = $this->estimates_model->get_statuses();
                 $data['estimateid']            = '';
+                $data['switch_pipeline']       = '';
+            } elseif ($group == 'project_proposals') {
+                $this->load->model('proposals_model');
+                $data['proposal_statuses']     = $this->proposals_model->get_statuses();
+                $data['proposals_sale_agents'] = $this->proposals_model->get_sale_agents();
+                $data['years']                 = $this->proposals_model->get_proposals_years();
+                $data['proposal_id']           = '';
                 $data['switch_pipeline']       = '';
             } elseif ($group == 'project_tickets') {
                 $data['chosen_ticket_status'] = '';
@@ -453,7 +459,7 @@ class Projects extends AdminController
             $this->load->library('zip');
             foreach ($files as $file) {
                 if ($file['original_file_name'] != '') {
-                    $this->zip->read_file($path . '/' . $file['file_name'], $path . '/' . $file['original_file_name']);
+                    $this->zip->read_file($path . '/' . $file['file_name'], $file['original_file_name']);
                 } else {
                     $this->zip->read_file($path . '/' . $file['file_name']);
                 }

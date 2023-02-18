@@ -89,6 +89,10 @@ class Proposals_model extends App_Model
             $data['content'] = '{proposal_items}';
         }
 
+        if (isset($data['rel_id'], $data['rel_type']) && $data['rel_type'] !== 'customer') {
+            $data['project_id'] = null;
+        }
+
         $hook = hooks()->apply_filters('before_create_proposal', [
             'data'  => $data,
             'items' => $items,
@@ -356,6 +360,12 @@ class Proposals_model extends App_Model
                         break;
                     }
                 }
+
+                if ($proposal->project_id != 0) {
+                    $this->load->model('projects_model');
+                    $proposal->project_data = $this->projects_model->get($proposal->project_id);
+                }
+
                 if ($for_editor == false) {
                     $proposal = parse_proposal_content_merge_fields($proposal);
                 }
@@ -615,6 +625,11 @@ class Proposals_model extends App_Model
         // in case open till is expired set new 7 days starting from current date
         if ($insert_data['open_till'] && get_option('proposal_due_after') != 0) {
             $insert_data['open_till'] = _d(date('Y-m-d', strtotime('+' . get_option('proposal_due_after') . ' DAY', strtotime(date('Y-m-d')))));
+        } elseif ($insert_data['open_till']) {
+            $dDate                    = new DateTime(date('Y-m-d'));
+            $dOpenTill                = new DateTime($insert_data['open_till']);
+            $dDiff                    = $dDate->diff($dOpenTill);
+            $insert_data['open_till'] = _d($dDate->modify('+ ' . $dDiff->days . ' DAY')->format('Y-m-d'));
         }
 
         $insert_data['newitems'] = [];
@@ -775,6 +790,8 @@ class Proposals_model extends App_Model
      */
     public function delete($id)
     {
+        hooks()->do_action('before_proposal_deleted', $id);
+
         $this->clear_signature($id);
         $proposal = $this->get($id);
 
@@ -838,6 +855,8 @@ class Proposals_model extends App_Model
             $this->db->delete(db_prefix() . 'views_tracking');
 
             log_activity('Proposal Deleted [ProposalID:' . $id . ']');
+
+            hooks()->do_action('after_proposal_deleted', $id);
 
             return true;
         }

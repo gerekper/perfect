@@ -60,12 +60,6 @@ class Misc extends AdminController
         redirect($_SERVER['HTTP_REFERER']);
     }
 
-    public function dismiss_timesheets_notice_admins()
-    {
-        update_option('show_timesheets_overview_all_members_notice_admins', 0);
-        redirect($_SERVER['HTTP_REFERER']);
-    }
-
     public function dismiss_cloudflare_notice()
     {
         update_option('show_cloudflare_notice', 0);

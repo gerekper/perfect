@@ -77,6 +77,16 @@ class Arr
         return false;
     }
 
+    public static function pull(&$array, $key)
+    {
+        if (array_key_exists($key, $array)) {
+            $value = $array[$key];
+            unset($array[$key]);
+
+            return $value;
+        }
+    }
+
     public static function pluck($array, $key)
     {
         return array_map(function ($v) use ($key) {

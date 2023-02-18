@@ -87,7 +87,7 @@ function get_available_staff_permissions($data = [])
         ],
         'projects' => [
             'name'         => _l('projects'),
-            'capabilities' => array_merge($withNotApplicableViewOwn, [ 'create_milestones' => _l('permission_create_timesheets'), 
+            'capabilities' => array_merge($withNotApplicableViewOwn, [ 'create_milestones' => _l('permission_create_timesheets'),
                 'edit_milestones'=> _l('permission_edit_milestones'), 'delete_milestones'=> _l('permission_delete_milestones')]),
             'help'         => [
                 'view'     => _l('help_project_permissions'),
@@ -102,6 +102,7 @@ function get_available_staff_permissions($data = [])
             'name'         => _l('reports'),
             'capabilities' => [
                 'view' => $viewGlobalName,
+                'view-timesheets' => _l('permission_view_timesheet_report'),
             ],
         ],
         'roles' => [
@@ -126,8 +127,8 @@ function get_available_staff_permissions($data = [])
         'tasks' => [
             'name'         => _l('tasks'),
             'capabilities' => array_merge($withNotApplicableViewOwn, [
-                'edit_timesheet' => _l('permission_edit_timesheets'), 
-                'edit_own_timesheet' => _l('permission_edit_own_timesheets'), 
+                'edit_timesheet' => _l('permission_edit_timesheets'),
+                'edit_own_timesheet' => _l('permission_edit_own_timesheets'),
                 'delete_timesheet' => _l('permission_delete_timesheets'),
                 'delete_own_timesheet' => _l('permission_delete_own_timesheets'),
             ]),

@@ -298,6 +298,7 @@ class App_sms
             '{proposal_number}',
             '{proposal_id}',
             '{proposal_subject}',
+            '{proposal_date}',
             '{proposal_open_till}',
             '{proposal_subtotal}',
             '{proposal_total}',

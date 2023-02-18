@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Jan 11, 2022 at 01:45 PM
+-- Generation Time: Oct 30, 2022 at 06:41 PM
 -- Server version: 8.0.27-0ubuntu0.20.04.1
 -- PHP Version: 7.4.27
 
@@ -773,7 +773,7 @@ INSERT INTO `tblemailtemplates` (`emailtemplateid`, `type`, `slug`, `language`, 
 (6, 'invoice', 'invoice-payment-recorded', 'english', 'Invoice Payment Recorded (Sent to Customer)', 'Invoice Payment Recorded', '<span style=\"font-size: 12pt;\">Hello {contact_firstname}&nbsp;{contact_lastname}<br /><br /></span>Thank you for the payment. Find the payment details below:<br /><br />-------------------------------------------------<br /><br />Amount:&nbsp;<strong>{payment_total}<br /></strong>Date:&nbsp;<strong>{payment_date}</strong><br />Invoice number:&nbsp;<span style=\"font-size: 12pt;\"><strong># {invoice_number}<br /><br /></strong></span>-------------------------------------------------<br /><br />You can always view the invoice for this payment at the following link:&nbsp;<a href=\"{invoice_link}\"><span style=\"font-size: 12pt;\">{invoice_number}</span></a><br /><br />We are looking forward working with you.<br /><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
 (7, 'invoice', 'invoice-overdue-notice', 'english', 'Invoice Overdue Notice', 'Invoice Overdue Notice - {invoice_number}', '<span style=\"font-size: 12pt;\">Hi {contact_firstname} {contact_lastname}</span><br /><br /><span style=\"font-size: 12pt;\">This is an overdue notice for invoice <strong># {invoice_number}</strong></span><br /><br /><span style=\"font-size: 12pt;\">This invoice was due: {invoice_duedate}</span><br /><br /><span style=\"font-size: 12pt;\">You can view the invoice on the following link: <a href=\"{invoice_link}\">{invoice_number}</a></span><br /><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
 (8, 'invoice', 'invoice-already-send', 'english', 'Invoice Already Sent to Customer', 'Invoice # {invoice_number} ', '<span style=\"font-size: 12pt;\">Hi {contact_firstname} {contact_lastname}</span><br /><br /><span style=\"font-size: 12pt;\">At your request, here is the invoice with number <strong># {invoice_number}</strong></span><br /><br /><span style=\"font-size: 12pt;\">You can view the invoice on the following link: <a href=\"{invoice_link}\">{invoice_number}</a></span><br /><br /><span style=\"font-size: 12pt;\">Please contact us for more information.</span><br /><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
-(9, 'ticket', 'new-ticket-created-staff', 'english', 'New Ticket Created (Opened by Customer, Sent to Staff Members)', 'New Ticket Created', '<span style=\"font-size: 12pt;\">A new support ticket has been opened.</span><br /><br /><span style=\"font-size: 12pt;\"><strong>Subject</strong>: {ticket_subject}</span><br /><span style=\"font-size: 12pt;\"><strong>Department</strong>: {ticket_department}</span><br /><span style=\"font-size: 12pt;\"><strong>Priority</strong>: {ticket_priority}<br /></span><br /><span style=\"font-size: 12pt;\"><strong>Ticket message:</strong></span><br /><span style=\"font-size: 12pt;\">{ticket_message}</span><br /><br /><span style=\"font-size: 12pt;\">You can view the ticket on the following link: <a href=\"{ticket_url}\" rel=\"noreferrer\">#{ticket_id}</a></span><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
+(9, 'ticket', 'new-ticket-created-staff', 'english', 'New Ticket Created (Opened by Customer, Sent to Staff Members)', 'New Ticket Created', '<p><span style=\"font-size: 12pt;\">A new support ticket has been opened.</span><br /><br /><span style=\"font-size: 12pt;\"><strong>Subject</strong>: {ticket_subject}</span><br /><span style=\"font-size: 12pt;\"><strong>Department</strong>: {ticket_department}</span><br /><span style=\"font-size: 12pt;\"><strong>Priority</strong>: {ticket_priority}<br /></span><br /><span style=\"font-size: 12pt;\"><strong>Ticket message:</strong></span><br /><span style=\"font-size: 12pt;\">{ticket_message}</span><br /><br /><span style=\"font-size: 12pt;\">You can view the ticket on the following link: <a href=\"{ticket_url}\">#{ticket_id}</a></span><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span></p>', '{companyname} | CRM', '', 0, 1, 0),
 (10, 'estimate', 'estimate-send-to-client', 'english', 'Send Estimate to Customer', 'Estimate # {estimate_number} created', '<span style=\"font-size: 12pt;\">Dear {contact_firstname} {contact_lastname}</span><br /><br /><span style=\"font-size: 12pt;\">Please find the attached estimate <strong># {estimate_number}</strong></span><br /><br /><span style=\"font-size: 12pt;\"><strong>Estimate status:</strong> {estimate_status}</span><br /><br /><span style=\"font-size: 12pt;\">You can view the estimate on the following link: <a href=\"{estimate_link}\">{estimate_number}</a></span><br /><br /><span style=\"font-size: 12pt;\">We look forward to your communication.</span><br /><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}<br /></span>', '{companyname} | CRM', '', 0, 1, 0),
 (11, 'ticket', 'ticket-reply-to-admin', 'english', 'Ticket Reply (Sent to Staff)', 'New Support Ticket Reply', '<span style=\"font-size: 12pt;\">A new support ticket reply from {contact_firstname} {contact_lastname}</span><br /><br /><span style=\"font-size: 12pt;\"><strong>Subject</strong>: {ticket_subject}</span><br /><span style=\"font-size: 12pt;\"><strong>Department</strong>: {ticket_department}</span><br /><span style=\"font-size: 12pt;\"><strong>Priority</strong>: {ticket_priority}</span><br /><br /><span style=\"font-size: 12pt;\"><strong>Ticket message:</strong></span><br /><span style=\"font-size: 12pt;\">{ticket_message}</span><br /><br /><span style=\"font-size: 12pt;\">You can view the ticket on the following link: <a href=\"{ticket_url}\">#{ticket_id}</a></span><br /><br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
 (12, 'estimate', 'estimate-already-send', 'english', 'Estimate Already Sent to Customer', 'Estimate # {estimate_number} ', '<span style=\"font-size: 12pt;\">Dear {contact_firstname} {contact_lastname}</span><br /> <br /><span style=\"font-size: 12pt;\">Thank you for your estimate request.</span><br /> <br /><span style=\"font-size: 12pt;\">You can view the estimate on the following link: <a href=\"{estimate_link}\">{estimate_number}</a></span><br /> <br /><span style=\"font-size: 12pt;\">Please contact us for more information.</span><br /> <br /><span style=\"font-size: 12pt;\">Kind Regards,</span><br /><span style=\"font-size: 12pt;\">{email_signature}</span>', '{companyname} | CRM', '', 0, 1, 0),
@@ -1159,7 +1159,7 @@ CREATE TABLE `tblinvoicepaymentrecords` (
   `paymentmethod` varchar(191) DEFAULT NULL,
   `date` date NOT NULL,
   `daterecorded` datetime NOT NULL,
-  `note` text NOT NULL,
+  `note` text CHARACTER SET utf8 COLLATE utf8_general_ci,
   `transactionid` mediumtext
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
@@ -1521,7 +1521,7 @@ CREATE TABLE `tblmigrations` (
 --
 
 INSERT INTO `tblmigrations` (`version`) VALUES
-(293);
+(304);
 
 -- --------------------------------------------------------
 
@@ -1863,7 +1863,7 @@ INSERT INTO `tbloptions` (`id`, `name`, `value`, `autoload`) VALUES
 (193, 'show_cloudflare_notice', '1', 0),
 (194, 'task_modal_class', 'modal-lg', 1),
 (195, 'lead_modal_class', 'modal-lg', 1),
-(196, 'show_timesheets_overview_all_members_notice_admins', '1', 0),
+(196, 'show_timesheets_overview_all_members_notice_admins', '0', 1),
 (197, 'desktop_notifications', '0', 1),
 (198, 'hide_notified_reminders_from_calendar', '1', 0),
 (199, 'customer_info_format', '{company_name}<br />\r\n{street}<br />\r\n{city} {state}<br />\r\n{country_code} {zip_code}<br />\r\n{vat_number_with_label}', 0),
@@ -1985,7 +1985,10 @@ INSERT INTO `tbloptions` (`id`, `name`, `value`, `autoload`) VALUES
 (315, 'reminder_for_completed_but_not_billed_tasks', '0', 1),
 (316, 'staff_notify_completed_but_not_billed_tasks', '', 1),
 (317, 'reminder_for_completed_but_not_billed_tasks_days', '', 1),
-(318, 'tasks_reminder_notification_last_notified_day', '', 1);
+(318, 'tasks_reminder_notification_last_notified_day', '', 1),
+(319, 'staff_related_ticket_notification_to_assignee_only', '0', 1),
+(320, 'show_pdf_signature_proposal', '1', 1),
+(321, 'enable_honeypot_spam_validation', '0', 1);
 
 -- --------------------------------------------------------
 
@@ -2197,6 +2200,7 @@ CREATE TABLE `tblproposals` (
   `assigned` int DEFAULT NULL,
   `hash` varchar(32) NOT NULL,
   `proposal_to` varchar(191) DEFAULT NULL,
+  `project_id` int DEFAULT NULL,
   `country` int NOT NULL DEFAULT '0',
   `zip` varchar(50) DEFAULT NULL,
   `state` varchar(100) DEFAULT NULL,
@@ -2341,13 +2345,6 @@ CREATE TABLE `tblsessions` (
   `timestamp` int UNSIGNED NOT NULL DEFAULT '0',
   `data` blob NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-
---
--- Dumping data for table `tblsessions`
---
-
-INSERT INTO `tblsessions` (`id`, `ip_address`, `timestamp`, `data`) VALUES
-('6gv7abhlaekn68lm3ae73pvs5niinss4', '192.168.10.1', 1641908701, 0x5f5f63695f6c6173745f726567656e65726174657c693a313634313930383639383b73746166665f757365725f69647c733a313a2231223b73746166665f6c6f676765645f696e7c623a313b73657475702d6d656e752d6f70656e7c733a303a22223b);
 
 -- --------------------------------------------------------
 
@@ -2747,9 +2744,9 @@ CREATE TABLE `tbltickets_status` (
 
 INSERT INTO `tbltickets_status` (`ticketstatusid`, `name`, `isdefault`, `statuscolor`, `statusorder`) VALUES
 (1, 'Open', 1, '#ff2d42', 1),
-(2, 'In progress', 1, '#84c529', 2),
-(3, 'Answered', 1, '#0000ff', 3),
-(4, 'On Hold', 1, '#c0c0c0', 4),
+(2, 'In progress', 1, '#22c55e', 2),
+(3, 'Answered', 1, '#2563eb', 3),
+(4, 'On Hold', 1, '#64748b', 4),
 (5, 'Closed', 1, '#03a9f4', 5);
 
 -- --------------------------------------------------------
@@ -4078,7 +4075,7 @@ ALTER TABLE `tblnotifications`
 -- AUTO_INCREMENT for table `tbloptions`
 --
 ALTER TABLE `tbloptions`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=319;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=322;
 
 --
 -- AUTO_INCREMENT for table `tblpayment_modes`

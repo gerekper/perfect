@@ -1,5 +1,7 @@
 <?php
 
+use app\services\utilities\Str;
+
 defined('BASEPATH') or exit('No direct script access allowed');
 
 class Dashboard extends AdminController
@@ -78,6 +80,11 @@ class Dashboard extends AdminController
         }
         $data['user_dashboard_visibility'] = json_encode($data['user_dashboard_visibility']);
 
+        $data['tickets_report'] = [];
+        if (is_admin()) {
+            $data['tickets_report'] = (new \app\services\TicketsReportByStaff())->filterBy('this_month');
+        }
+
         $data = hooks()->apply_filters('before_dashboard_render', $data);
         $this->load->view('admin/dashboard/dashboard', $data);
     }
@@ -98,5 +105,11 @@ class Dashboard extends AdminController
             echo json_encode($this->dashboard_model->get_monthly_payments_statistics($currency));
             die();
         }
+    }
+
+    public function ticket_widget($type)
+    {
+        $data['tickets_report'] = (new \app\services\TicketsReportByStaff())->filterBy($type);
+        $this->load->view('admin/dashboard/widgets/tickets_report_table', $data);
     }
 }

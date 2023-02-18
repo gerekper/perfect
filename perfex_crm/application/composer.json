@@ -16,7 +16,7 @@
         "bainternet/php-hooks": "^1.0",
         "paypal/paypal-checkout-sdk": "1.0.1",
         "xemlock/htmlpurifier-html5": "^0.1.11",
-        "authorizenet/authorizenet": "2.0.0",
+        "authorizenet/authorizenet": "2.0.2",
         "sonata-project/google-authenticator": "^2.2",
         "ddeboer/imap": "^1.10",
         "zbateson/mail-mime-parser": "^1.3",

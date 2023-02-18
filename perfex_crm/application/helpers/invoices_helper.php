@@ -435,11 +435,17 @@ function format_invoice_number($id)
 {
     $CI = &get_instance();
 
-    $CI->db->select('date,number,prefix,number_format,status')
-        ->from(db_prefix() . 'invoices')
-        ->where('id', $id);
+    if (!is_object($id)) {
+        $CI->db->select('date,number,prefix,number_format,status')
+            ->from(db_prefix() . 'invoices')
+            ->where('id', $id);
 
-    $invoice = $CI->db->get()->row();
+        $invoice = $CI->db->get()->row();
+    } else {
+        $invoice = $id;
+
+        $id = $invoice->id;
+    }
 
     if (!$invoice) {
         return '';

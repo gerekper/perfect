@@ -36,15 +36,13 @@ trait PDF_Signature
                 $signature .= '</span><br />';
             }
 
-            if ($this->type() == 'proposal') {
+            if ($this->type() == 'proposal' || $this->type() == 'estimate') {
                 $signature .= '<br /><br /><span style="font-weight:bold;text-align: right;">';
                 $signature .= _l('proposal_signed_by') . ": {$record->acceptance_firstname} {$record->acceptance_lastname}<br />";
                 $signature .= _l('proposal_signed_date') . ': ' . _dt($record->acceptance_date) . '<br />';
                 $signature .= _l('proposal_signed_ip') . ": {$record->acceptance_ip}";
                 $signature .= '</span><br />';
             }
-
-            $imageData = base64_encode(file_get_contents($path));
 
             $signature .= str_repeat(
                 '<br />',
@@ -66,20 +64,12 @@ trait PDF_Signature
 
             hooks()->do_action('before_customer_pdf_signature', $hookData);
 
+            $imageData = file_get_contents($path);
             $this->MultiCell($width, 0, $signature, 0, 'R', 0, 1, '', '', true, 0, true, false, 0);
 
-            $this->writeHTMLCell(
-                $dimensions['wk'] - ($dimensions['rm'] + $dimensions['lm']),
-                0,
-                $this->getX(),
-                $this->getY(),
-                '<img src="' . $path . '">',
-                0,
-                0,
-                false,
-                true,
-                'R'
-            );
+            $customerSignatureSize = hooks()->apply_filters('customer_pdf_signature_size', 0);
+
+            $this->Image('@' . $imageData, $this->getX(), $this->getY(), $customerSignatureSize, 0, 'PNG', '', 'R', true, 300, 'R', false, false, 0, true);
 
             hooks()->do_action('after_customer_pdf_signature', $hookData);
         }
@@ -90,6 +80,7 @@ trait PDF_Signature
         if (($this->type() == 'invoice' && get_option('show_pdf_signature_invoice') == 1)
         || ($this->type() == 'estimate' && get_option('show_pdf_signature_estimate') == 1)
         || ($this->type() == 'contract' && get_option('show_pdf_signature_contract') == 1)
+        || ($this->type() == 'proposal' && get_option('show_pdf_signature_proposal') == 1)
         || ($this->type() == 'credit_note') && get_option('show_pdf_signature_credit_note') == 1) {
             $signatureImage = get_option('signature_image');
 
@@ -106,7 +97,7 @@ trait PDF_Signature
 
             if ($signatureImage != '' && $signatureExists) {
                 $imageData = base64_encode(file_get_contents($signaturePath));
-                $blankSignatureLine .= str_repeat('<br />', hooks()->apply_filters('pdf_signature_break_lines', 1)) . '<img src="@' . $imageData . '" />';
+                $blankSignatureLine .= str_repeat('<br />', hooks()->apply_filters('pdf_signature_break_lines', 1)) . '<img src="@' . $imageData . '" / />';
             }
 
             return $blankSignatureLine;

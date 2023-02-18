@@ -60,6 +60,7 @@ class Authentication extends App_Controller
                             set_alert('danger', _l('two_factor_auth_failed_to_send_code'));
                             redirect(admin_url('authentication'));
                         } else {
+                            $this->session->set_userdata('_two_factor_auth_staff_email', $email);
                             set_alert('success', _l('two_factor_auth_code_sent_successfully', $email));
                             redirect(admin_url('authentication/two_factor'));
                         }
@@ -89,7 +90,7 @@ class Authentication extends App_Controller
 
     public function two_factor($type = 'email')
     {
-        if(!$this->session->has_userdata('_two_factor_auth_established')) {
+        if (!$this->session->has_userdata('_two_factor_auth_established')) {
             show_404();
         }
 
@@ -97,9 +98,12 @@ class Authentication extends App_Controller
 
         if ($this->input->post()) {
             if ($this->form_validation->run() !== false) {
-                $code = $this->input->post('code');
-                $code = trim($code);
-                if ($this->Authentication_model->is_two_factor_code_valid($code) && $type = 'email') {
+                $code  = $this->input->post('code');
+                $code  = trim($code);
+                $email = $this->session->userdata('_two_factor_auth_staff_email');
+                if ($this->Authentication_model->is_two_factor_code_valid($code, $email) && $type = 'email') {
+                    $this->session->unset_userdata('_two_factor_auth_staff_email');
+
                     $user = $this->Authentication_model->get_user_by_two_factor_auth_code($code);
                     $this->Authentication_model->clear_two_factor_auth_code($user->staffid);
                     $this->Authentication_model->two_factor_auth_login($user);
@@ -123,7 +127,7 @@ class Authentication extends App_Controller
                     hooks()->do_action('after_staff_login');
                     redirect(admin_url());
                 } else {
-                    log_activity('Failed Two factor authentication attempt [Staff Name: '. get_staff_full_name() . ', IP: ' . $this->input->ip_address() . ']');
+                    log_activity('Failed Two factor authentication attempt [Staff Name: ' . get_staff_full_name() . ', IP: ' . $this->input->ip_address() . ']');
 
                     set_alert('danger', _l('two_factor_code_not_valid'));
                     redirect(admin_url('authentication/two_factor/' . $type));

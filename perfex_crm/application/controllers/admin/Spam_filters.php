@@ -22,7 +22,7 @@ class Spam_filters extends AdminController
                 'value',
             ];
             $sIndexColumn = 'id';
-            $sTable       = db_prefix().'spam_filters';
+            $sTable       = db_prefix() . 'spam_filters';
             $result       = data_tables_init($aColumns, $sIndexColumn, $sTable, [], [
                 'AND type ="' . $filter_type . '" AND rel_type="' . $rel_type . '"',
             ], [
@@ -36,12 +36,19 @@ class Spam_filters extends AdminController
                     $_data = $aRow[$aColumns[$i]];
                     $row[] = $_data;
                 }
-                $options = icon_btn('#', 'pencil-square-o', 'btn-default', [
-                    'onclick'    => 'edit_spam_filter(this,' . $aRow['id'] . '); return false;',
-                    'data-value' => $aRow['value'],
-                    'data-type'  => $filter_type,
-                ]);
-                $row[]              = $options .= icon_btn('spam_filters/delete/' . $aRow['id'] . '/' . $rel_type, 'remove', 'btn-danger _delete');
+
+                $options = '<div class="tw-flex tw-items-center tw-space-x-3">';
+                $options .= '<a href="#" class="tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700" data-type="' . $filter_type . '" data-value="' . $aRow['value'] . '" onclick="edit_spam_filter(this,' . $aRow['id'] . '); return false;">
+                    <i class="fa-regular fa-pen-to-square fa-lg"></i>
+                </a>';
+
+                $options .= '<a href="' . admin_url('spam_filters/delete/' . $aRow['id'] . '/' . $rel_type) . '"
+                class="tw-mt-px tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 _delete">
+                    <i class="fa-regular fa-trash-can fa-lg"></i>
+                </a>';
+                $options .= '</div>';
+
+                $row[]              = $options;
                 $output['aaData'][] = $row;
             }
             echo json_encode($output);
